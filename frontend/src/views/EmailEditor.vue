@@ -41,10 +41,6 @@
 
         <div class="preview-panel">
           <h3>Previsualización del Correo</h3>
-          <!-- <div class="preview-controls">
-            <button @click="setPreviewWidth('desktop')">Desktop</button>
-            <button @click="setPreviewWidth('mobile')">Móvil</button>
-          </div> -->
           <iframe ref="previewIframe" :style="{ width: previewWidth, height: '2100px', border: '1px solid #ccc', 'background-color': 'white' }"></iframe>
         </div>
       </div>
@@ -56,13 +52,14 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, nextTick } from 'vue'; // <-- Importa nextTick aquí
 import axios from 'axios';
 import { useRoute } from 'vue-router';
-import TiptapEditor from '../components/TiptapEditor.vue'; // Importa el nuevo componente
+import TiptapEditor from '../components/TiptapEditor.vue';
+import { capitalizeFirstLetter, isValidUrl, getPlainTextFromHtml } from '../utils/helpers.js'; // <-- Asegúrate de estas importaciones
+import { useFeedback } from '../composables/useFeedback.js'; // <-- Asegúrate de esta importación
 
-
-const validationErrors = ref({}); // Objeto para almacenar errores de validación por campo
+const validationErrors = ref({});
 const route = useRoute();
 const uuid = ref(route.params.uuid);
 
@@ -72,12 +69,9 @@ const loading = ref(true);
 const error = ref(null);
 const previewIframe = ref(null);
 const isSaving = ref(false);
-const previewWidth = ref('772px'); // Ancho estándar de tu template por defecto
+const previewWidth = ref('772px');
 
-const capitalizeFirstLetter = (string) => {
-  if (!string) return '';
-  return string.charAt(0).toUpperCase() + string.slice(1).replace(/_/g, ' ');
-};
+const { feedbackMessage, feedbackType, showFeedback } = useFeedback(); // <-- Usa el composable de feedback aquí
 
 const updatePreview = () => {
   if (!previewIframe.value) {
@@ -95,14 +89,9 @@ const updatePreview = () => {
     const placeholder = new RegExp(`{{\\s*${key}\\s*}}`, 'g');
     let replacement = editableContent.value[key] || '';
 
-    // Si el campo es un enlace, solo codificamos la URL.
-    // Si es un campo editable por TipTap, el contenido ya es HTML, así que no convertimos \n a <br>
     if (key.includes('enlace_')) {
       replacement = encodeURI(replacement);
     }
-    // Nota: Si el contenido ya viene como HTML de TipTap, no necesitamos .replace(/\n/g, '<br>')
-    // porque TipTap ya maneja los saltos de línea y el formato HTML.
-    // Asegúrate de que tu initial_content en HomeView.vue también sea HTML si lo necesitas.
 
     finalHtml = finalHtml.replace(placeholder, replacement);
   }
@@ -172,7 +161,11 @@ onMounted(async () => {
     console.log('Template HTML received (first 200 chars):', templateHtml.value.substring(0, 200) + '...');
 
     editableContent.value = content_json;
-    updatePreview(); 
+    
+    // !!! ESTE ES EL CAMBIO CLAVE: Envuelve updatePreview() con nextTick() !!!
+    nextTick(() => {
+      updatePreview();
+    });
 
   } catch (err) {
     console.error('Error al cargar datos del correo o template:', err);
@@ -187,27 +180,22 @@ onMounted(async () => {
 });
 
 const saveChanges = async () => {
-  // 1. Resetear errores de validación previos
   validationErrors.value = {};
-
-  // 2. Realizar validación en el frontend
   let hasValidationErrors = false;
   for (const key in editableContent.value) {
     const value = editableContent.value[key];
 
     if (key.includes('enlace_')) {
-      // Validación para URLs: no vacío y formato de URL
       if (!value) {
         validationErrors.value[key] = 'Este campo de URL no puede estar vacío.';
         hasValidationErrors = true;
-      } else if (!isValidUrl(value)) { // Usaremos una función auxiliar isValidUrl
+      } else if (!isValidUrl(value)) {
         validationErrors.value[key] = 'Por favor, introduce una URL válida.';
         hasValidationErrors = true;
       }
     } else {
-      // Validación para campos de texto WYSIWYG: que no estén vacíos de contenido real
-      const plainText = getPlainTextFromHtml(value); // Usaremos una función auxiliar
-      if (!plainText.trim()) { // Si el texto plano está vacío o solo con espacios
+      const plainText = getPlainTextFromHtml(value);
+      if (!plainText.trim()) {
         validationErrors.value[key] = 'El contenido no puede estar vacío.';
         hasValidationErrors = true;
       }
@@ -216,7 +204,7 @@ const saveChanges = async () => {
 
   if (hasValidationErrors) {
     showFeedback('Por favor, corrige los errores de validación.', 'error');
-    return; // Detener el guardado si hay errores
+    return;
   }
 
   isSaving.value = true;
@@ -231,24 +219,6 @@ const saveChanges = async () => {
   } finally {
     isSaving.value = false;
   }
-};
-
-// Funciones auxiliares para validación:
-const isValidUrl = (url) => {
-  try {
-    new URL(url);
-    return true;
-  } catch (e) {
-    return false;
-  }
-};
-
-// Función para extraer texto plano de HTML (para TipTap)
-// Esto es una simplificación; para un parseo HTML robusto se usaría una librería DOM
-const getPlainTextFromHtml = (html) => {
-  if (!html) return '';
-  // Elimina etiquetas HTML y espacios extra
-  return html.replace(/<[^>]*>/g, '').trim();
 };
 
 const copyHtmlToClipboard = () => {
@@ -281,24 +251,6 @@ const setPreviewWidth = (type) => {
     previewWidth.value = '320px';
   }
   updatePreview();
-};
-
-// --- Feedback Visual ---
-const feedbackMessage = ref('');
-const feedbackType = ref(''); // 'success' o 'error'
-let feedbackTimeout = null;
-
-const showFeedback = (message, type) => {
-    feedbackMessage.value = message;
-    feedbackType.value = type;
-
-    if (feedbackTimeout) {
-        clearTimeout(feedbackTimeout);
-    }
-    feedbackTimeout = setTimeout(() => {
-        feedbackMessage.value = '';
-        feedbackType.value = '';
-    }, 3000); // El mensaje desaparecerá después de 3 segundos
 };
 </script>
 

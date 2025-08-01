@@ -69,6 +69,8 @@
 <script setup>
 import { ref, onMounted } from 'vue';
 import axios from 'axios';
+import { formatDate } from '../utils/helpers.js';
+import { useFeedback } from '../composables/useFeedback.js';
 
 const templates = ref([]);
 const loadingTemplates = ref(true);
@@ -83,29 +85,15 @@ const isSaving = ref(false);
 const formError = ref(null);
 const formSuccess = ref(null);
 const formErrors = ref({}); // Para errores de validación específicos de campos
-// Nuevos refs para el feedback del formulario
-const formFeedbackMessage = ref(null);
-const formFeedbackType = ref(''); // 'success' o 'error'
-let formFeedbackTimeout = null;
 
 
 // Nuevo ref para la sección del formulario (para el scroll)
 const templateFormSection = ref(null);
 
+// Usa el composable de feedback
+// Aquí lo renombramos a formFeedbackMessage/Type para que no haya conflicto con el feedbackMessage/Type global si lo tuvieras
+const { feedbackMessage: formFeedbackMessage, feedbackType: formFeedbackType, showFeedback: showFormFeedback } = useFeedback(); // <-- AÑADE ESTA LÍNEA
 
-// Función para mostrar feedback en el formulario
-const showFormFeedback = (message, type) => {
-  formFeedbackMessage.value = message;
-  formFeedbackType.value = type;
-
-  if (formFeedbackTimeout) {
-    clearTimeout(formFeedbackTimeout);
-  }
-  formFeedbackTimeout = setTimeout(() => {
-    formFeedbackMessage.value = null;
-    formFeedbackType.value = '';
-  }, 3000); // El mensaje desaparecerá después de 3 segundos
-};
 
 // Función para cargar la lista de templates
 const fetchTemplates = async () => {
@@ -423,18 +411,31 @@ input.invalid, textarea.invalid {
 
 /* Estilos para el feedback del formulario (similar al global, pero ajustado a la posición) */
 .form-feedback-message {
-    position: sticky; /* O fixed si quieres que flote */
-    top: 10px; /* Ajusta la posición vertical */
-    left: 50%;
-    transform: translateX(-50%);
-    padding: 10px 20px;
-    border-radius: 6px;
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    padding: 15px 25px;
+    border-radius: 8px;
     color: white;
     font-weight: bold;
-    z-index: 999; /* Asegura que esté por encima de otros elementos */
-    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+    z-index: 999;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
     opacity: 0;
-    animation: fade-in-down 0.3s forwards; /* Animación ligeramente diferente */
+    transform: translateY(-20px);
+    animation: fade-in-up 0.3s forwards;
+    /* ============= */
+    /* position: fixed;
+    top: 20px;
+    right: 20px;
+    padding: 15px 25px;
+    border-radius: 8px;
+    color: white;
+    font-weight: bold;
+    z-index: 1000;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+    opacity: 0;
+    transform: translateY(-20px);
+    animation: fade-in-up 0.3s forwards; */
 }
 
 .form-feedback-message.success {
@@ -445,14 +446,15 @@ input.invalid, textarea.invalid {
     background-color: #dc3545;
 }
 
-@keyframes fade-in-down {
+
+@keyframes fade-in-up {
     from {
         opacity: 0;
-        transform: translate(-50%, -20px);
+        transform: translateY(-20px);
     }
     to {
         opacity: 1;
-        transform: translate(-50%, 0);
+        transform: translateY(0);
     }
 }
 </style>

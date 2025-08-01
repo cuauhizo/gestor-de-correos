@@ -63,6 +63,8 @@
 import { ref, onMounted } from 'vue';
 import axios from 'axios';
 import { useRouter } from 'vue-router';
+import { capitalizeFirstLetter, isValidUrl, getPlainTextFromHtml } from '../utils/helpers.js';
+
 
 const router = useRouter();
 const newEmailUrl = ref('');
@@ -80,32 +82,11 @@ const templateDetailsError = ref(null);
 const initialContent = ref({}); // Contenido que el usuario introduce para los placeholders
 const initialContentErrors = ref({}); // Errores de validación para el contenido inicial
 
-// --- Funciones Auxiliares ---
-const capitalizeFirstLetter = (string) => {
-  if (!string) return '';
-  return string.charAt(0).toUpperCase() + string.slice(1).replace(/_/g, ' ');
-};
 
 const getTemplateName = (id) => {
   const template = templates.value.find(t => t.id === id);
   return template ? template.name : 'Template Desconocido';
 };
-
-const isValidUrl = (url) => {
-  try {
-    new URL(url);
-    return true;
-  } catch (e) {
-    return false;
-  }
-};
-
-const getPlainTextFromHtml = (html) => {
-  if (!html) return '';
-  const doc = new DOMParser().parseFromString(html, 'text/html');
-  return doc.body.textContent || '';
-};
-
 
 // --- Carga Inicial de Templates ---
 const fetchTemplates = async () => {

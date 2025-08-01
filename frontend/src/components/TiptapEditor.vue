@@ -55,7 +55,7 @@
 import { watch, onMounted, onBeforeUnmount } from 'vue';
 import { useEditor, EditorContent } from '@tiptap/vue-3';
 import StarterKit from '@tiptap/starter-kit';
-import Link from '@tiptap/extension-link'; // Importa el Link extension
+// import Link from '@tiptap/extension-link'; // Importa el Link extension
 
 const props = defineProps({
   modelValue: { // Recibe el HTML inicial del padre
@@ -74,11 +74,11 @@ const editor = useEditor({
   content: props.modelValue, // Contenido inicial
   extensions: [
     StarterKit,
-    Link.configure({ // Configura la extensión de Link
-      openOnClick: false, // Evita abrir el enlace al hacer clic en el editor
-      autolink: true,   // Convierte automáticamente URLs a enlaces
-      // Añade otras opciones si las necesitas, por ejemplo, validación de URL
-    }),
+    // Elimina o comenta este bloque si no necesitas configuraciones específicas para Link
+    // Link.configure({
+    //   openOnClick: false,
+    //   autolink: true,
+    // }),
   ],
   onUpdate: ({ editor }) => {
     // Cuando el contenido del editor cambia, emitimos el HTML actualizado

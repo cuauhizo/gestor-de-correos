@@ -371,6 +371,25 @@ app.put(
     }
 );
 
+// --- NUEVA RUTA: Eliminar un template por ID (DELETE /api/templates/:id) ---
+app.delete('/api/templates/:id', async (req, res) => {
+    const { id } = req.params;
+    try {
+        const [result] = await pool.execute(
+            'DELETE FROM templates WHERE id = ?',
+            [id]
+        );
+
+        if (result.affectedRows === 0) {
+            return res.status(404).json({ message: 'Template no encontrado para eliminar.' });
+        }
+        res.json({ message: 'Template eliminado exitosamente.' });
+    } catch (error) {
+        console.error('Error al eliminar template:', error);
+        res.status(500).json({ message: 'Error interno del servidor al eliminar template.' });
+    }
+});
+
 // Iniciar el servidor
 async function startServer() {
     await connectToDatabase();

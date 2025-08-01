@@ -23,6 +23,9 @@
         </li>
       </ul>
     </div>
+    <div v-if="feedbackMessage" :class="['feedback-message', feedbackType]">
+      {{ feedbackMessage }}
+    </div>
   </div>
 </template>
 
@@ -30,19 +33,15 @@
 import { ref, onMounted } from 'vue';
 import axios from 'axios';
 import { useRouter } from 'vue-router'; // Para forzar una recarga si se elimina
+import { formatDate } from '../utils/helpers.js';
+import { useFeedback } from '../composables/useFeedback.js';
 
 const emails = ref([]);
 const templates = ref([]);
 const loading = ref(true);
 const error = ref(null);
 const router = useRouter(); // Para recargar la lista después de eliminar
-
-// Función auxiliar para formatear fechas
-const formatDate = (dateString) => {
-  if (!dateString) return 'N/A';
-  const options = { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' };
-  return new Date(dateString).toLocaleDateString('es-ES', options);
-};
+const { feedbackMessage, feedbackType, showFeedback } = useFeedback();
 
 // Nueva función para obtener el nombre del template por su ID
 const getTemplateName = (templateId) => {
@@ -91,24 +90,6 @@ const deleteEmail = async (uuidToDelete) => {
     console.error('Error al eliminar correo:', err);
     alert('Error al eliminar correo. Revisa la consola.'); // Se puede reemplazar por feedback visual
   }
-};
-
-// --- Feedback Visual ---
-const feedbackMessage = ref('');
-const feedbackType = ref(''); // 'success' o 'error'
-let feedbackTimeout = null;
-
-const showFeedback = (message, type) => {
-    feedbackMessage.value = message;
-    feedbackType.value = type;
-
-    if (feedbackTimeout) {
-        clearTimeout(feedbackTimeout);
-    }
-    feedbackTimeout = setTimeout(() => {
-        feedbackMessage.value = '';
-        feedbackType.value = '';
-    }, 3000); // El mensaje desaparecerá después de 3 segundos
 };
 
 // Cargar la lista al montar el componente
@@ -242,6 +223,17 @@ h1 {
 
 .feedback-message.error {
     background-color: #dc3545;
+}
+
+@keyframes fade-in-up {
+    from {
+        opacity: 0;
+        transform: translateY(-20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
 }
 
 </style>
