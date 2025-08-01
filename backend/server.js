@@ -3,6 +3,8 @@ require('dotenv').config(); // Carga las variables de entorno
 const express = require('express');
 const mysql = require('mysql2/promise'); // Usamos la versión de promesas para async/await
 const cors = require('cors');
+const { v4: uuidv4 } = require('uuid'); 
+const { body, param, validationResult } = require('express-validator'); // Importar validadores
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -88,31 +90,142 @@ app.get('/api/emails-editable/:uuid', async (req, res) => {
     }
 });
 
-// Ruta para actualizar el contenido de un correo editable
-app.put('/api/emails-editable/:uuid', async (req, res) => {
-    const { uuid } = req.params;
-    const { updated_content } = req.body;
+// Ruta para actualizar el contenido de un correo editable con validación
+app.put(
+    '/api/emails-editable/:uuid',
+    [
+        // 2. Validar el parámetro UUID de la URL
+        param('uuid').isUUID(4).withMessage('UUID de correo inválido.'),
 
-    if (!updated_content) {
-        return res.status(400).json({ message: 'Se requiere updated_content.' });
-    }
+        // 3. Validar que 'updated_content' sea un objeto y no esté vacío
+        body('updated_content')
+            .isObject().withMessage('El contenido actualizado debe ser un objeto.')
+            .notEmpty().withMessage('El contenido actualizado no puede estar vacío.'),
 
-    try {
-        const [result] = await pool.execute(
-            'UPDATE emails_editable SET content_json = ? WHERE uuid = ?',
-            [JSON.stringify(updated_content), uuid]
-        );
+        // 4. (Opcional pero recomendado) Validar campos específicos dentro de updated_content
+        //    Aquí puedes añadir reglas para cada campo editable que esperas.
+        //    Para los campos de texto enriquecido (TipTap), validamos que no estén vacíos.
+        //    Para los campos de enlace, validamos que sean URLs válidas.
 
-        if (result.affectedRows === 0) {
-            return res.status(404).json({ message: 'Correo editable no encontrado para actualizar.' });
+        // Ejemplo de validación para campos específicos (ajusta según tus nombres de campo):
+        // body('updated_content.titulo_principal')
+        //     .optional() // Permite que el campo no esté presente si no es estrictamente obligatorio
+        //     .isString().withMessage('El título principal debe ser una cadena de texto.')
+        //     .custom(value => {
+        //         // Extrae texto plano para validar que no sea solo HTML vacío
+        //         const plainText = value.replace(/<[^>]*>/g, '').trim();
+        //         if (!plainText) {
+        //             throw new Error('El título principal no puede estar vacío.');
+        //         }
+        //         return true;
+        //     }),
+
+        // body('updated_content.parrafo_principal')
+        //     .optional()
+        //     .isString().withMessage('El párrafo principal debe ser una cadena de texto.')
+        //     .custom(value => {
+        //         const plainText = value.replace(/<[^>]*>/g, '').trim();
+        //         if (!plainText) {
+        //             throw new Error('El párrafo principal no puede estar vacío.');
+        //         }
+        //         return true;
+        //     }),
+
+        // body('updated_content.enlace_promocion') // Ejemplo para un campo de enlace
+        //     .optional()
+        //     .isURL().withMessage('El enlace de promoción debe ser una URL válida.'),
+
+        // Puedes replicar las validaciones .custom() e .isURL() para todos tus campos
+        // de texto y enlace respectivamente, para una validación más granular.
+        // Si tienes muchos campos, el bucle que ya tienes en el controlador es una buena alternativa.
+    ],
+    async (req, res) => {
+        // 5. Recoger los resultados de la validación
+        const errors = validationResult(req);
+        if (!errors.isEmpty()) {
+            return res.status(400).json({ errors: errors.array() });
         }
-        res.json({ message: 'Contenido del correo editable actualizado exitosamente.' });
+
+        const { uuid } = req.params;
+        const { updated_content } = req.body;
+
+        // 6. Validación adicional de contenido real para campos de texto WYSIWYG y URLs
+        //    Este bucle es muy efectivo para validar todos tus campos dinámicos
+        for (const key in updated_content) {
+            const value = updated_content[key];
+
+            if (key.includes('enlace_')) {
+                // Validación para URLs
+                try {
+                    new URL(value); // Intenta crear una URL para validar el formato
+                } catch (e) {
+                    return res.status(400).json({ message: `El campo '${key}' debe ser una URL válida.` });
+                }
+            } else {
+                // Validación para campos de texto WYSIWYG (que no estén vacíos de contenido real)
+                // Elimina etiquetas HTML y espacios extra para obtener el texto plano
+                const plainText = value.replace(/<[^>]*>/g, '').trim();
+                if (!plainText) {
+                    return res.status(400).json({ message: `El campo '${key}' no puede estar vacío.` });
+                }
+            }
+        }
+
+        try {
+            const [result] = await pool.execute(
+                'UPDATE emails_editable SET content_json = ? WHERE uuid = ?',
+                [JSON.stringify(updated_content), uuid]
+            );
+
+            if (result.affectedRows === 0) {
+                return res.status(404).json({ message: 'Correo editable no encontrado para actualizar.' });
+            }
+            res.json({ message: 'Contenido del correo editable actualizado exitosamente.' });
+        } catch (error) {
+            console.error('Error al actualizar correo editable:', error);
+            res.status(500).json({ message: 'Error interno del servidor al actualizar correo editable.' });
+        }
+    }
+);
+
+// Ruta para obtener todos los correos editables
+app.get('/api/emails-editable', async (req, res) => {
+    try {
+        const [rows] = await pool.query('SELECT uuid, template_id, content_json, created_at, updated_at FROM emails_editable');
+        // Asegúrate de parsear el JSON antes de enviarlo
+        const emails = rows.map(row => ({
+            ...row,
+            content_json: JSON.parse(row.content_json)
+        }));
+        res.json(emails);
     } catch (error) {
-        console.error('Error al actualizar correo editable:', error);
-        res.status(500).json({ message: 'Error interno del servidor al actualizar correo editable.' });
+        console.error('Error al obtener lista de correos editables:', error);
+        res.status(500).json({ message: 'Error interno del servidor al obtener la lista de correos editables.' });
     }
 });
 
+
+// Ruta para eliminar un correo editable por UUID
+app.delete('/api/emails-editable/:uuid', async (req, res) => {
+    const { uuid } = req.params;
+    try {
+        const [result] = await pool.execute(
+            'DELETE FROM emails_editable WHERE uuid = ?',
+            [uuid]
+        );
+
+        if (result.affectedRows === 0) {
+            return res.status(404).json({ message: 'Correo editable no encontrado para eliminar.' });
+        }
+        res.json({ message: 'Correo editable eliminado exitosamente.' });
+    } catch (error) {
+        console.error('Error al eliminar correo editable:', error);
+        res.status(500).json({ message: 'Error interno del servidor al eliminar correo editable.' });
+    }
+});
+
+
+// --- Nuevas Rutas para la gestión de templates ---
 
 // Ruta para obtener el HTML de un template base
 app.get('/api/templates/:id', async (req, res) => {
@@ -133,6 +246,59 @@ app.get('/api/templates/:id', async (req, res) => {
         res.status(500).json({ message: 'Error interno del servidor al obtener template.' });
     }
 });
+
+
+// Ruta para obtener todos los templates (GET /api/templates)
+app.get('/api/templates', async (req, res) => {
+    try {
+        const [rows] = await pool.query('SELECT id, name, created_at FROM templates');
+        res.json(rows); // Devolvemos el ID, nombre y fecha de creación, no el HTML completo aquí
+    } catch (error) {
+        console.error('Error al obtener lista de templates:', error);
+        res.status(500).json({ message: 'Error interno del servidor al obtener la lista de templates.' });
+    }
+});
+
+// Ruta para crear un nuevo template (POST /api/templates)
+app.post(
+    '/api/templates',
+    [
+        // Validaciones para el nuevo template
+        body('name')
+            .isString().withMessage('El nombre del template debe ser una cadena de texto.')
+            .trim().notEmpty().withMessage('El nombre del template no puede estar vacío.')
+            .isLength({ min: 3, max: 255 }).withMessage('El nombre debe tener entre 3 y 255 caracteres.'),
+        body('html_content')
+            .isString().withMessage('El contenido HTML debe ser una cadena de texto.')
+            .notEmpty().withMessage('El contenido HTML no puede estar vacío.'),
+        // Puedes añadir más validaciones para el contenido HTML si lo necesitas,
+        // por ejemplo, para asegurar que es HTML válido o contiene ciertos placeholders.
+    ],
+    async (req, res) => {
+        const errors = validationResult(req);
+        if (!errors.isEmpty()) {
+            return res.status(400).json({ errors: errors.array() });
+        }
+
+        const { name, html_content } = req.body;
+        try {
+            // Verificar si ya existe un template con el mismo nombre (opcional)
+            const [existingTemplate] = await pool.execute('SELECT id FROM templates WHERE name = ?', [name]);
+            if (existingTemplate.length > 0) {
+                return res.status(409).json({ message: 'Ya existe un template con este nombre.' });
+            }
+
+            const [result] = await pool.execute(
+                'INSERT INTO templates (name, html_content) VALUES (?, ?)',
+                [name, html_content]
+            );
+            res.status(201).json({ id: result.insertId, name, message: 'Template creado exitosamente.' });
+        } catch (error) {
+            console.error('Error al crear template:', error);
+            res.status(500).json({ message: 'Error interno del servidor al crear template.' });
+        }
+    }
+);
 
 // Iniciar el servidor
 async function startServer() {

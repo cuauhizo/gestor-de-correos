@@ -15,54 +15,68 @@
           <div v-for="(value, key) in editableContent" :key="key" class="editable-field">
             <label :for="key">{{ capitalizeFirstLetter(key.replace(/_/g, ' ')) }}:</label>
             <template v-if="key.includes('enlace_')">
-              <input :id="key" v-model="editableContent[key]" @input="updatePreview" type="url" />
+              <input
+                :id="key"
+                v-model="editableContent[key]"
+                @input="updatePreview"
+                type="url"
+                :class="{ 'invalid': validationErrors[key] }" />
             </template>
             <template v-else>
-              <textarea :id="key" v-model="editableContent[key]" @input="updatePreview"></textarea>
+              <TiptapEditor
+                :modelValue="editableContent[key]"
+                @update:modelValue="newValue => { editableContent[key] = newValue; updatePreview(); }"
+                :class="{ 'invalid': validationErrors[key] }" />
             </template>
+            <p v-if="validationErrors[key]" class="validation-error">{{ validationErrors[key] }}</p>
           </div>
-          
+
           <div class="button-group">
-              <button @click="saveChanges" :disabled="isSaving">{{ isSaving ? 'Guardando...' : 'Guardar Cambios' }}</button>
-              <button @click="copyHtmlToClipboard" class="generate-html-button">Copiar HTML Final</button>
+            <button @click="saveChanges" :disabled="isSaving">{{ isSaving ? 'Guardando...' : 'Guardar Cambios' }}</button>
+            <button @click="copyHtmlToClipboard" class="generate-html-button">Copiar HTML Final</button>
           </div>
         </div>
 
         <div class="preview-panel">
           <h3>Previsualización del Correo</h3>
+          <!-- <div class="preview-controls">
+            <button @click="setPreviewWidth('desktop')">Desktop</button>
+            <button @click="setPreviewWidth('mobile')">Móvil</button>
+          </div> -->
           <iframe ref="previewIframe" :style="{ width: previewWidth, height: '2100px', border: '1px solid #ccc', 'background-color': 'white' }"></iframe>
         </div>
       </div>
     </template>
+    <div v-if="feedbackMessage" :class="['feedback-message', feedbackType]">
+      {{ feedbackMessage }}
+    </div>
   </div>
 </template>
 
 <script setup>
 import { ref, onMounted } from 'vue';
 import axios from 'axios';
-import { useRoute } from 'vue-router'; // Para obtener el UUID de la URL
+import { useRoute } from 'vue-router';
+import TiptapEditor from '../components/TiptapEditor.vue'; // Importa el nuevo componente
 
+
+const validationErrors = ref({}); // Objeto para almacenar errores de validación por campo
 const route = useRoute();
-const uuid = ref(route.params.uuid); // Usa ref para que sea reactivo si se quiere ver el UUID en la UI
+const uuid = ref(route.params.uuid);
 
-const templateHtml = ref(''); // Aquí se guardará el HTML base del template
-const editableContent = ref({}); // Objeto para el contenido editable (key-value)
-const loading = ref(true); // Estado de carga
-const error = ref(null); // Mensajes de error
-const previewIframe = ref(null); // Referencia al iframe para manipular su contenido
-const isSaving = ref(false); // Estado de guardado para deshabilitar botón
-const previewWidth = ref('100%'); // Ancho de la previsualización (desktop por defecto)
+const templateHtml = ref('');
+const editableContent = ref({});
+const loading = ref(true);
+const error = ref(null);
+const previewIframe = ref(null);
+const isSaving = ref(false);
+const previewWidth = ref('772px'); // Ancho estándar de tu template por defecto
 
-// --- Funciones de Ayuda ---
-// Capitaliza la primera letra de una cadena y reemplaza guiones bajos por espacios
 const capitalizeFirstLetter = (string) => {
   if (!string) return '';
   return string.charAt(0).toUpperCase() + string.slice(1).replace(/_/g, ' ');
 };
 
-// --- Lógica Principal del Editor ---
-
-// Función para actualizar el contenido del iframe de previsualización
 const updatePreview = () => {
   if (!previewIframe.value) {
     console.warn('previewIframe ref es null. No se puede actualizar la previsualización.');
@@ -73,25 +87,24 @@ const updatePreview = () => {
     return;
   }
 
-  let finalHtml = templateHtml.value; // Partimos del HTML base
+  let finalHtml = templateHtml.value;
 
-  // Iteramos sobre el contenido editable y reemplazamos los placeholders
   for (const key in editableContent.value) {
-    const placeholder = new RegExp(`{{\\s*${key}\\s*}}`, 'g'); // Regex para encontrar {{ campo }}
-    let replacement = editableContent.value[key] || ''; // Obtener el valor actual del campo, o cadena vacía
+    const placeholder = new RegExp(`{{\\s*${key}\\s*}}`, 'g');
+    let replacement = editableContent.value[key] || '';
 
-    // Lógica para manejar enlaces vs. texto normal
+    // Si el campo es un enlace, solo codificamos la URL.
+    // Si es un campo editable por TipTap, el contenido ya es HTML, así que no convertimos \n a <br>
     if (key.includes('enlace_')) {
-      replacement = encodeURI(replacement); // Codifica la URL para evitar problemas
-    } else {
-      replacement = replacement.replace(/\n/g, '<br>'); // Convierte saltos de línea a <br> para HTML
+      replacement = encodeURI(replacement);
     }
-    
+    // Nota: Si el contenido ya viene como HTML de TipTap, no necesitamos .replace(/\n/g, '<br>')
+    // porque TipTap ya maneja los saltos de línea y el formato HTML.
+    // Asegúrate de que tu initial_content en HomeView.vue también sea HTML si lo necesitas.
+
     finalHtml = finalHtml.replace(placeholder, replacement);
   }
 
-  // Envolver el HTML final en una estructura de documento HTML básica
-  // Esto es crucial para que el iframe lo renderice correctamente y para la compatibilidad con email
   const fullHtml = `
     <!DOCTYPE html>
     <html>
@@ -100,23 +113,16 @@ const updatePreview = () => {
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width, initial-scale=1">
       <style>
-        /* Aquí puedes añadir estilos generales que afecten a la previsualización
-           o que complementen los estilos inline de tu template.
-           Para emails, la mayoría de los estilos deben estar inline. */
         body { font-family: Helvetica, Arial, sans-serif; margin: 0; padding: 0; background-color: #f6f6f6; }
-        h1, h2, h3, h4, h5, h6 { margin-top: 0; margin-bottom: 8px; } /* Ajuste de márgenes por defecto */
+        h1, h2, h3, h4, h5, h6 { margin-top: 0; margin-bottom: 8px; }
         p { margin-top: 0; margin-bottom: 1em; }
         a { color: #007bff; text-decoration: underline; }
-        
-        /* Estilos específicos para la estructura general si tu template no los tiene */
         .email-wrapper {
-          max-width: 772px; /* Ancho máximo de tu template */
+          max-width: 772px;
           margin: 0 auto;
-          background-color: #ffffff; /* Fondo del email */
+          background-color: #ffffff;
           box-shadow: 0 2px 4px rgba(0,0,0,0.1);
         }
-
-        /* Estilos para responsividad del iframe, no del email en sí */
         @media (max-width: 600px) {
           .email-wrapper {
             width: 100% !important;
@@ -138,15 +144,13 @@ const updatePreview = () => {
     </html>
   `;
 
-  // Escribir el HTML en el iframe
   previewIframe.value.contentWindow.document.open();
   previewIframe.value.contentWindow.document.write(fullHtml);
   previewIframe.value.contentWindow.document.close();
 };
 
-// Cargar datos iniciales del correo editable y del template al montar el componente
 onMounted(async () => {
-  console.log('EmailEditor mounted. UUID:', uuid.value); // Depuración
+  console.log('EmailEditor mounted. UUID:', uuid.value);
 
   if (!uuid.value) {
     error.value = 'UUID de correo no proporcionado.';
@@ -155,27 +159,21 @@ onMounted(async () => {
   }
 
   try {
-    // 1. Obtener los datos del correo editable (incluye template_id y contenido_json)
-    console.log('Fetching email editable data for UUID:', uuid.value); // Depuración
+    console.log('Fetching email editable data for UUID:', uuid.value);
     const emailResponse = await axios.get(`http://localhost:3000/api/emails-editable/${uuid.value}`);
     const { template_id, content_json } = emailResponse.data;
-    console.log('Email editable data received:', emailResponse.data); // Depuración
+    console.log('Email editable data received:', emailResponse.data);
 
-    // 2. Obtener el HTML del template base usando el template_id
-    console.log('Fetching template HTML for ID:', template_id); // Depuración
+    console.log('Fetching template HTML for ID:', template_id);
     const templateResponse = await axios.get(`http://localhost:3000/api/templates/${template_id}`);
-    templateHtml.value = templateResponse.data.html_content; // Asume que el backend devuelve { html_content: '...' }
-    console.log('Template HTML received (first 200 chars):', templateHtml.value.substring(0, 200) + '...'); // Depuración
+    templateHtml.value = templateResponse.data.html_content;
+    console.log('Template HTML received (first 200 chars):', templateHtml.value.substring(0, 200) + '...');
 
-    // Asignar el contenido editable
     editableContent.value = content_json;
-
-    // Generar la primera vista previa
     updatePreview(); 
 
   } catch (err) {
     console.error('Error al cargar datos del correo o template:', err);
-    // Mejora el mensaje de error para el usuario
     if (err.response && err.response.status === 404) {
         error.value = 'Correo o template no encontrado. Verifica la URL.';
     } else {
@@ -186,23 +184,87 @@ onMounted(async () => {
   }
 });
 
-// Función para guardar los cambios del contenido editable en el backend
+// const saveChanges = async () => {
+//   isSaving.value = true;
+//   try {
+//     await axios.put(`http://localhost:3000/api/emails-editable/${uuid.value}`, {
+//       updated_content: editableContent.value
+//     });
+//     // Ahora, en lugar de alert, usamos feedback visual
+//     showFeedback('Cambios guardados exitosamente!', 'success');
+//   } catch (err) {
+//     console.error('Error al guardar cambios:', err);
+//     showFeedback('Error al guardar cambios. Revisa la consola.', 'error');
+//   } finally {
+//     isSaving.value = false;
+//   }
+// };
+
 const saveChanges = async () => {
+  // 1. Resetear errores de validación previos
+  validationErrors.value = {};
+
+  // 2. Realizar validación en el frontend
+  let hasValidationErrors = false;
+  for (const key in editableContent.value) {
+    const value = editableContent.value[key];
+
+    if (key.includes('enlace_')) {
+      // Validación para URLs: no vacío y formato de URL
+      if (!value) {
+        validationErrors.value[key] = 'Este campo de URL no puede estar vacío.';
+        hasValidationErrors = true;
+      } else if (!isValidUrl(value)) { // Usaremos una función auxiliar isValidUrl
+        validationErrors.value[key] = 'Por favor, introduce una URL válida.';
+        hasValidationErrors = true;
+      }
+    } else {
+      // Validación para campos de texto WYSIWYG: que no estén vacíos de contenido real
+      const plainText = getPlainTextFromHtml(value); // Usaremos una función auxiliar
+      if (!plainText.trim()) { // Si el texto plano está vacío o solo con espacios
+        validationErrors.value[key] = 'El contenido no puede estar vacío.';
+        hasValidationErrors = true;
+      }
+    }
+  }
+
+  if (hasValidationErrors) {
+    showFeedback('Por favor, corrige los errores de validación.', 'error');
+    return; // Detener el guardado si hay errores
+  }
+
   isSaving.value = true;
   try {
     await axios.put(`http://localhost:3000/api/emails-editable/${uuid.value}`, {
       updated_content: editableContent.value
     });
-    alert('Cambios guardados exitosamente!');
+    showFeedback('Cambios guardados exitosamente!', 'success');
   } catch (err) {
     console.error('Error al guardar cambios:', err);
-    alert('Error al guardar cambios. Revisa la consola.');
+    showFeedback('Error al guardar cambios. Revisa la consola.', 'error');
   } finally {
     isSaving.value = false;
   }
 };
 
-// Función para copiar el HTML final al portapapeles
+// Funciones auxiliares para validación:
+const isValidUrl = (url) => {
+  try {
+    new URL(url);
+    return true;
+  } catch (e) {
+    return false;
+  }
+};
+
+// Función para extraer texto plano de HTML (para TipTap)
+// Esto es una simplificación; para un parseo HTML robusto se usaría una librería DOM
+const getPlainTextFromHtml = (html) => {
+  if (!html) return '';
+  // Elimina etiquetas HTML y espacios extra
+  return html.replace(/<[^>]*>/g, '').trim();
+};
+
 const copyHtmlToClipboard = () => {
   let finalHtml = templateHtml.value;
   for (const key in editableContent.value) {
@@ -210,34 +272,47 @@ const copyHtmlToClipboard = () => {
     let replacement = editableContent.value[key] || '';
     if (key.includes('enlace_')) {
       replacement = encodeURI(replacement);
-    } else {
-      replacement = replacement.replace(/\n/g, '<br>'); // Convertir saltos de línea para el HTML final
     }
     finalHtml = finalHtml.replace(placeholder, replacement);
   }
 
-  // El HTML que se copia es el HTML con los placeholders reemplazados
-  // No se le añaden los head/body/wrapper del iframe, ya que eso es para la previsualización
   const textToCopy = finalHtml; 
 
   navigator.clipboard.writeText(textToCopy)
     .then(() => {
-      alert('HTML copiado al portapapeles!');
+      showFeedback('HTML copiado al portapapeles!', 'success');
     })
     .catch(err => {
       console.error('Error al copiar HTML:', err);
-      alert('Error al copiar HTML. Tu navegador podría requerir HTTPS o permisos específicos para copiar al portapapeles, o un botón clicado por el usuario.');
+      showFeedback('Error al copiar HTML. Tu navegador podría requerir HTTPS o permisos específicos para copiar.', 'error');
     });
 };
 
-// Función para cambiar el ancho de la previsualización (simulando desktop/mobile)
 const setPreviewWidth = (type) => {
   if (type === 'desktop') {
-    previewWidth.value = '772px'; // O el ancho estándar de tu template
+    previewWidth.value = '772px';
   } else if (type === 'mobile') {
-    previewWidth.value = '320px'; // Ancho típico de móvil
+    previewWidth.value = '320px';
   }
-  updatePreview(); // Re-renderizar para que el ancho se aplique
+  updatePreview();
+};
+
+// --- Feedback Visual ---
+const feedbackMessage = ref('');
+const feedbackType = ref(''); // 'success' o 'error'
+let feedbackTimeout = null;
+
+const showFeedback = (message, type) => {
+    feedbackMessage.value = message;
+    feedbackType.value = type;
+
+    if (feedbackTimeout) {
+        clearTimeout(feedbackTimeout);
+    }
+    feedbackTimeout = setTimeout(() => {
+        feedbackMessage.value = '';
+        feedbackType.value = '';
+    }, 3000); // El mensaje desaparecerá después de 3 segundos
 };
 </script>
 
@@ -248,8 +323,9 @@ const setPreviewWidth = (type) => {
   align-items: center;
   padding: 20px;
   font-family: Arial, sans-serif;
-  min-height: 100vh; /* Para que ocupe toda la altura */
+  min-height: 100vh;
   background-color: #f0f2f5;
+  position: relative; /* Para posicionar el feedback */
 }
 
 h1 {
@@ -259,9 +335,9 @@ h1 {
 
 .editor-layout {
   display: flex;
-  flex-wrap: wrap; /* Permite que los paneles se apilen en pantallas pequeñas */
+  flex-wrap: wrap;
   width: 100%;
-  max-width: 1400px; /* Un poco más ancho para el layout de dos columnas */
+  max-width: 1400px;
   gap: 20px;
   margin-top: 20px;
   background-color: #fff;
@@ -271,8 +347,8 @@ h1 {
 }
 
 .controls-panel {
-  flex: 1; /* Ocupa el espacio restante */
-  min-width: 300px; /* Ancho mínimo para el panel de controles */
+  flex: 1;
+  min-width: 300px;
   padding: 20px;
   border: 1px solid #eee;
   border-radius: 8px;
@@ -300,7 +376,6 @@ h1 {
   font-size: 0.9em;
 }
 
-.editable-field textarea,
 .editable-field input[type="url"] {
   width: 100%;
   padding: 10px;
@@ -308,21 +383,15 @@ h1 {
   border-radius: 4px;
   box-sizing: border-box;
   font-size: 0.95em;
-  min-height: 80px; /* Más altura para textareas */
-  resize: vertical; /* Permite redimensionar verticalmente */
+  height: 38px;
   background-color: #fff;
-}
-
-.editable-field input[type="url"] {
-  min-height: unset; /* Reinicia para input */
-  height: 38px; /* Altura estándar para input */
 }
 
 .button-group {
     display: flex;
     gap: 10px;
     margin-top: 20px;
-    flex-wrap: wrap; /* Para que los botones se envuelvan si no hay espacio */
+    flex-wrap: wrap;
 }
 
 button {
@@ -346,23 +415,23 @@ button:disabled {
 }
 
 .generate-html-button {
-    background-color: #28a745; /* Un color diferente para distinguirlo */
+    background-color: #28a745;
 }
 .generate-html-button:hover {
     background-color: #218838;
 }
 
 .preview-panel {
-  flex: 2; /* Ocupa más espacio */
+  flex: 2;
   display: flex;
   flex-direction: column;
   align-items: center;
   border: 1px solid #eee;
   border-radius: 8px;
-  background-color: #fff; /* Fondo blanco para la previsualización */
+  background-color: #fff;
   padding: 20px;
   box-shadow: inset 0 0 5px rgba(0,0,0,0.05);
-  min-width: 400px; /* Ancho mínimo para el panel de previsualización */
+  min-width: 400px;
 }
 
 .preview-panel h3 {
@@ -373,16 +442,28 @@ button:disabled {
   margin-bottom: 20px;
 }
 
+.preview-controls {
+    margin-bottom: 15px;
+}
+.preview-controls button {
+    background-color: #6c757d;
+    margin: 0 5px;
+    padding: 8px 15px;
+    font-size: 14px;
+}
+.preview-controls button:hover {
+    background-color: #5a6268;
+}
 
 iframe {
-  width: 100%; /* El ancho lo controla previewWidth */
-  height: 2100px; /* Altura fija */
+  width: 100%;
+  height: 2100px;
   border: 1px solid #ddd;
   border-radius: 4px;
   background-color: white;
   box-shadow: 0 0 10px rgba(0,0,0,0.1);
-  transition: width 0.3s ease-in-out; /* Animación al cambiar de ancho */
-  max-width: 100%; /* Asegura que no se desborde */
+  transition: width 0.3s ease-in-out;
+  max-width: 100%;
 }
 
 .loading, .error {
@@ -392,17 +473,64 @@ iframe {
   text-align: center;
 }
 .error {
-  color: #dc3545; /* Color rojo para errores */
+  color: #dc3545;
   font-weight: bold;
 }
 
+/* Estilos para el feedback visual */
+.feedback-message {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    padding: 15px 25px;
+    border-radius: 8px;
+    color: white;
+    font-weight: bold;
+    z-index: 1000;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+    opacity: 0;
+    transform: translateY(-20px);
+    animation: fade-in-up 0.3s forwards;
+}
+
+.feedback-message.success {
+    background-color: #28a745;
+}
+
+.feedback-message.error {
+    background-color: #dc3545;
+}
+
+.validation-error {
+  color: #dc3545; /* Rojo */
+  font-size: 0.85em;
+  margin-top: 5px;
+}
+.editable-field input.invalid,
+.editable-field textarea.invalid,
+.editable-field .tiptap-editor-wrapper.invalid { /* Estilo para el borde si es inválido */
+    border-color: #dc3545;
+}
+
+@keyframes fade-in-up {
+    from {
+        opacity: 0;
+        transform: translateY(-20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+
 @media (max-width: 768px) {
     .editor-layout {
-        flex-direction: column; /* Apila los paneles en móviles */
+        flex-direction: column;
     }
     .controls-panel, .preview-panel {
-        min-width: unset; /* Resetea el min-width */
-        width: 100%; /* Ocupa todo el ancho */
+        min-width: unset;
+        width: 100%;
     }
 }
 </style>

@@ -2,6 +2,8 @@
 import { createRouter, createWebHistory } from 'vue-router';
 import EmailEditor from '../views/EmailEditor.vue';
 import HomeView from '../views/HomeView.vue'; // Una vista inicial
+import EmailList from '../views/EmailList.vue'; // Una vista inicial
+import TemplateManager from '../views/TemplateManager.vue';
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -16,6 +18,16 @@ const router = createRouter({
       name: 'email-editor',
       component: EmailEditor,
       props: true // Permite pasar el uuid como prop al componente
+    },
+    {
+      path: '/lista-correos', // <-- Añade esta nueva ruta
+      name: 'email-list',
+      component: EmailList
+    },
+    {
+      path: '/gestionar-templates', // <-- Añade esta nueva ruta
+      name: 'template-manager',
+      component: TemplateManager
     }
   ]
 });
