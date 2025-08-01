@@ -166,8 +166,9 @@ const editTemplate = async (id) => {
 
   try {
     const response = await axios.get(`http://localhost:3000/api/templates/${id}`);
+    currentTemplate.value.name = templates.value.find(t => t.id === id).name; // Obtener nombre de la lista ya cargada
     // Asegúrate de usar .value para los refs en Vue 3 Script Setup
-    currentTemplate.value.name = response.data.name; // Obtener nombre directamente de la respuesta si quieres
+    // currentTemplate.value.name = response.data.name; // Obtener nombre directamente de la respuesta si quieres
     currentTemplate.value.html_content = response.data.html_content;
     editingTemplateId.value = id;
 
