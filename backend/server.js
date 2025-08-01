@@ -191,12 +191,14 @@ app.put(
 // Ruta para obtener todos los correos editables
 app.get('/api/emails-editable', async (req, res) => {
     try {
-        const [rows] = await pool.query('SELECT uuid, template_id, content_json, created_at, updated_at FROM emails_editable');
+        // const [rows] = await pool.query('SELECT uuid, template_id, content_json, created_at, updated_at FROM emails_editable');
+        const [rows] = await pool.query('SELECT e.uuid, e.template_id, t.name, e.content_json, e.created_at, e.updated_at FROM emails_editable e JOIN templates t ON e.template_id = t.id');
         // Asegúrate de parsear el JSON antes de enviarlo
         const emails = rows.map(row => ({
             ...row,
             content_json: JSON.parse(row.content_json)
         }));
+        console.log(emails);
         res.json(emails);
     } catch (error) {
         console.error('Error al obtener lista de correos editables:', error);
@@ -227,10 +229,9 @@ app.delete('/api/emails-editable/:uuid', async (req, res) => {
 
 // --- Nuevas Rutas para la gestión de templates ---
 
-// Ruta para obtener el HTML de un template base
+// Modifica esta ruta para que devuelva el contenido HTML y los placeholders
 app.get('/api/templates/:id', async (req, res) => {
     const { id } = req.params;
-    console.log(id); // Debugging: Verifica el ID recibido
     try {
         const [rows] = await pool.execute(
             'SELECT html_content FROM templates WHERE id = ?',
@@ -240,7 +241,22 @@ app.get('/api/templates/:id', async (req, res) => {
         if (rows.length === 0) {
             return res.status(404).json({ message: 'Template no encontrado.' });
         }
-        res.json(rows[0]); // Devuelve { html_content: '...' }
+
+        const templateHtml = rows[0].html_content;
+
+        // --- Lógica para extraer placeholders del HTML ---
+        const placeholders = [];
+        const regex = /{{\s*([a-zA-Z0-9_]+)\s*}}/g; // Regex para {{ placeholder_name }}
+        let match;
+        while ((match = regex.exec(templateHtml)) !== null) {
+            // Asegurarse de no añadir duplicados
+            if (!placeholders.includes(match[1])) {
+                placeholders.push(match[1]);
+            }
+        }
+        // --- Fin de la lógica de extracción ---
+
+        res.json({ html_content: templateHtml, placeholders: placeholders }); // Ahora devuelve también los placeholders
     } catch (error) {
         console.error('Error al obtener template:', error);
         res.status(500).json({ message: 'Error interno del servidor al obtener template.' });
@@ -263,16 +279,21 @@ app.get('/api/templates', async (req, res) => {
 app.post(
     '/api/templates',
     [
-        // Validaciones para el nuevo template
         body('name')
             .isString().withMessage('El nombre del template debe ser una cadena de texto.')
             .trim().notEmpty().withMessage('El nombre del template no puede estar vacío.')
             .isLength({ min: 3, max: 255 }).withMessage('El nombre debe tener entre 3 y 255 caracteres.'),
         body('html_content')
             .isString().withMessage('El contenido HTML debe ser una cadena de texto.')
-            .notEmpty().withMessage('El contenido HTML no puede estar vacío.'),
-        // Puedes añadir más validaciones para el contenido HTML si lo necesitas,
-        // por ejemplo, para asegurar que es HTML válido o contiene ciertos placeholders.
+            .notEmpty().withMessage('El contenido HTML no puede estar vacío.')
+            .custom(value => { // <-- ¡NUEVA VALIDACIÓN PERSONALIZADA!
+                // Regex para buscar el patrón {{ nombre_placeholder }}
+                const placeholderRegex = /{{\s*([a-zA-Z0-9_]+)\s*}}/g;
+                if (!placeholderRegex.test(value)) {
+                    throw new Error('El contenido HTML debe contener al menos un placeholder con el formato {{nombre_del_campo}} para ser editable.');
+                }
+                return true;
+            }),
     ],
     async (req, res) => {
         const errors = validationResult(req);
@@ -282,7 +303,6 @@ app.post(
 
         const { name, html_content } = req.body;
         try {
-            // Verificar si ya existe un template con el mismo nombre (opcional)
             const [existingTemplate] = await pool.execute('SELECT id FROM templates WHERE name = ?', [name]);
             if (existingTemplate.length > 0) {
                 return res.status(409).json({ message: 'Ya existe un template con este nombre.' });
@@ -296,6 +316,57 @@ app.post(
         } catch (error) {
             console.error('Error al crear template:', error);
             res.status(500).json({ message: 'Error interno del servidor al crear template.' });
+        }
+    }
+);
+
+// NUEVA RUTA: Actualizar un template existente (PUT /api/templates/:id)
+app.put(
+    '/api/templates/:id',
+    [
+        body('name')
+            .isString().withMessage('El nombre del template debe ser una cadena de texto.')
+            .trim().notEmpty().withMessage('El nombre del template no puede estar vacío.')
+            .isLength({ min: 3, max: 255 }).withMessage('El nombre debe tener entre 3 y 255 caracteres.'),
+        body('html_content')
+            .isString().withMessage('El contenido HTML debe ser una cadena de texto.')
+            .notEmpty().withMessage('El contenido HTML no puede estar vacío.')
+            .custom(value => {
+                const placeholderRegex = /{{\s*([a-zA-Z0-9_]+)\s*}}/g;
+                if (!placeholderRegex.test(value)) {
+                    throw new Error('El contenido HTML debe contener al menos un placeholder con el formato {{nombre_del_campo}} para ser editable.');
+                }
+                return true;
+            }),
+    ],
+    async (req, res) => {
+        const errors = validationResult(req);
+        if (!errors.isEmpty()) {
+            return res.status(400).json({ errors: errors.array() });
+        }
+
+        const { id } = req.params;
+        const { name, html_content } = req.body;
+
+        try {
+            // Opcional: Verificar si el nuevo nombre ya existe para otro ID
+            const [existingName] = await pool.execute('SELECT id FROM templates WHERE name = ? AND id != ?', [name, id]);
+            if (existingName.length > 0) {
+                return res.status(409).json({ message: 'Ya existe otro template con este nombre.' });
+            }
+
+            const [result] = await pool.execute(
+                'UPDATE templates SET name = ?, html_content = ? WHERE id = ?',
+                [name, html_content, id]
+            );
+
+            if (result.affectedRows === 0) {
+                return res.status(404).json({ message: 'Template no encontrado para actualizar.' });
+            }
+            res.json({ message: 'Template actualizado exitosamente.' });
+        } catch (error) {
+            console.error('Error al actualizar template:', error);
+            res.status(500).json({ message: 'Error interno del servidor al actualizar template.' });
         }
     }
 );

@@ -8,7 +8,7 @@
     <div v-if="!loadingTemplates && !templatesError">
       <div v-if="templates.length > 0" class="template-selection">
         <label for="selectTemplate">Selecciona un Template:</label>
-        <select id="selectTemplate" v-model="selectedTemplateId">
+        <select id="selectTemplate" v-model="selectedTemplateId" @change="fetchSelectedTemplateDetails">
           <option value="" disabled>-- Selecciona un template --</option>
           <option v-for="template in templates" :key="template.id" :value="template.id">
             {{ template.name }} (ID: {{ template.id }})
@@ -18,9 +18,36 @@
       </div>
       <p v-else class="info-message">No hay templates disponibles. Por favor, <router-link to="/gestionar-templates">añade un template primero</router-link>.</p>
       
+      <div v-if="selectedTemplateId && selectedTemplatePlaceholders.length > 0" class="initial-content-section">
+        <h2>Contenido Inicial para {{ getTemplateName(selectedTemplateId) }}</h2>
+        <div v-for="placeholder in selectedTemplatePlaceholders" :key="placeholder" class="form-group">
+          <label :for="`initial-${placeholder}`">{{ capitalizeFirstLetter(placeholder.replace(/_/g, ' ')) }}:</label>
+          <template v-if="placeholder.includes('enlace_') || placeholder.includes('url_imagen_')">
+            <input 
+              type="url" 
+              :id="`initial-${placeholder}`" 
+              v-model="initialContent[placeholder]" 
+              placeholder="Introduce URL"
+              :class="{ 'invalid': initialContentErrors[placeholder] }"
+            />
+          </template>
+          <template v-else>
+            <textarea 
+              :id="`initial-${placeholder}`" 
+              v-model="initialContent[placeholder]" 
+              placeholder="Introduce texto o HTML"
+              :class="{ 'invalid': initialContentErrors[placeholder] }"
+            ></textarea>
+          </template>
+          <p v-if="initialContentErrors[placeholder]" class="validation-error">{{ initialContentErrors[placeholder] }}</p>
+        </div>
+      </div>
+      <p v-else-if="selectedTemplateId && selectedTemplatePlaceholders.length === 0" class="info-message">Este template no contiene campos editables.</p>
+
+
       <button 
         @click="createNewEmail" 
-        :disabled="!selectedTemplateId || isCreatingEmail"
+        :disabled="!selectedTemplateId || isCreatingEmail || loadingTemplateDetails"
       >
         {{ isCreatingEmail ? 'Creando...' : 'Crear Nuevo Correo Editable' }}
       </button>
@@ -42,12 +69,45 @@ const newEmailUrl = ref('');
 const creationError = ref(null);
 const isCreatingEmail = ref(false);
 
-const templates = ref([]);
+const templates = ref([]); // Lista de templates (id, name)
 const loadingTemplates = ref(true);
 const templatesError = ref(null);
-const selectedTemplateId = ref(''); // Para almacenar el ID del template seleccionado
+const selectedTemplateId = ref(''); // ID del template seleccionado
 
-// Función para cargar la lista de templates desde el backend
+const selectedTemplatePlaceholders = ref([]); // Placeholders del template seleccionado
+const loadingTemplateDetails = ref(false);
+const templateDetailsError = ref(null);
+const initialContent = ref({}); // Contenido que el usuario introduce para los placeholders
+const initialContentErrors = ref({}); // Errores de validación para el contenido inicial
+
+// --- Funciones Auxiliares ---
+const capitalizeFirstLetter = (string) => {
+  if (!string) return '';
+  return string.charAt(0).toUpperCase() + string.slice(1).replace(/_/g, ' ');
+};
+
+const getTemplateName = (id) => {
+  const template = templates.value.find(t => t.id === id);
+  return template ? template.name : 'Template Desconocido';
+};
+
+const isValidUrl = (url) => {
+  try {
+    new URL(url);
+    return true;
+  } catch (e) {
+    return false;
+  }
+};
+
+const getPlainTextFromHtml = (html) => {
+  if (!html) return '';
+  const doc = new DOMParser().parseFromString(html, 'text/html');
+  return doc.body.textContent || '';
+};
+
+
+// --- Carga Inicial de Templates ---
 const fetchTemplates = async () => {
   loadingTemplates.value = true;
   templatesError.value = null;
@@ -56,6 +116,7 @@ const fetchTemplates = async () => {
     templates.value = response.data;
     if (templates.value.length > 0) {
       selectedTemplateId.value = templates.value[0].id; // Seleccionar el primer template por defecto
+      await fetchSelectedTemplateDetails(); // Cargar detalles del template por defecto
     }
   } catch (err) {
     console.error('Error al cargar templates:', err);
@@ -65,65 +126,106 @@ const fetchTemplates = async () => {
   }
 };
 
+// --- Carga de Detalles del Template Seleccionado ---
+const fetchSelectedTemplateDetails = async () => {
+  if (!selectedTemplateId.value) {
+    selectedTemplatePlaceholders.value = [];
+    initialContent.value = {}; // Limpiar contenido si no hay template seleccionado
+    return;
+  }
+
+  loadingTemplateDetails.value = true;
+  templateDetailsError.value = null;
+  initialContentErrors.value = {}; // Resetear errores al cambiar de template
+
+  try {
+    // ESTA ES LA LLAMADA CLAVE PARA OBTENER LOS PLACEHOLDERS DEL BACKEND
+    const response = await axios.get(`http://localhost:3000/api/templates/${selectedTemplateId.value}`);
+    selectedTemplatePlaceholders.value = response.data.placeholders;
+
+    // Inicializar initialContent con valores por defecto (vacío) para los nuevos placeholders
+    const newInitialContent = {};
+    selectedTemplatePlaceholders.value.forEach(placeholder => {
+        // Podrías poner valores por defecto más inteligentes aquí si lo deseas
+        // Por ejemplo, para enlaces, un placeholder de URL
+        if (placeholder.includes('enlace_') || placeholder.includes('url_imagen_')) {
+            newInitialContent[placeholder] = ''; // O 'https://via.placeholder.com/200' para imágenes
+        } else {
+            newInitialContent[placeholder] = ''; // O '<p>Contenido por defecto...</p>'
+        }
+    });
+    initialContent.value = newInitialContent;
+
+  } catch (err) {
+    console.error('Error al cargar detalles del template:', err);
+    templateDetailsError.value = 'Error al cargar detalles del template. Por favor, intenta de nuevo.';
+    selectedTemplatePlaceholders.value = [];
+  } finally {
+    loadingTemplateDetails.value = false;
+  }
+};
+
+// --- Creación de Nuevo Correo Editable ---
 const createNewEmail = async () => {
-  console.log('--- createNewEmail function called ---');
-  creationError.value = null; // Limpiar errores previos
+  creationError.value = null;
+  initialContentErrors.value = {}; // Limpiar errores de validación de contenido inicial
 
   if (!selectedTemplateId.value) {
     creationError.value = 'Por favor, selecciona un template para crear un correo.';
     return;
   }
 
+  // Validar el contenido inicial antes de enviarlo
+  let hasValidationErrors = false;
+  for (const placeholder of selectedTemplatePlaceholders.value) {
+    const value = initialContent.value[placeholder] || ''; // Obtener valor, si no existe, es vacío
+
+    if (placeholder.includes('enlace_') || placeholder.includes('url_imagen_')) {
+      if (!value) {
+        initialContentErrors.value[placeholder] = 'Este campo de URL no puede estar vacío.';
+        hasValidationErrors = true;
+      } else if (!isValidUrl(value)) {
+        initialContentErrors.value[placeholder] = 'Por favor, introduce una URL válida.';
+        hasValidationErrors = true;
+      }
+    } else {
+      const plainText = getPlainTextFromHtml(value);
+      if (!plainText.trim()) {
+        initialContentErrors.value[placeholder] = 'El contenido no puede estar vacío.';
+        hasValidationErrors = true;
+      }
+    }
+  }
+
+  if (hasValidationErrors) {
+    creationError.value = 'Por favor, corrige los errores del contenido inicial.';
+    return;
+  }
+
+
   isCreatingEmail.value = true;
   try {
-    // Nota: El initial_content que se envía aquí debe contener los placeholders
-    // que TU template seleccionado espera. Si tus templates tienen placeholders muy diferentes,
-    // este initial_content DEBERÍA cargarse dinámicamente basado en el template
-    // (lo cual es más avanzado). Por ahora, asumimos un conjunto común de placeholders.
     const response = await axios.post('http://localhost:3000/api/emails-editable', {
-      template_id: selectedTemplateId.value, // Usar el template seleccionado
-      initial_content: {
-        // Asegúrate de que este contenido inicial sea HTML si tu template y TipTap lo esperan
-        // y que cubra los placeholders más comunes de tus templates.
-        titulo_principal: '<h2>Título principal por defecto (Editable)</h2>',
-        parrafo_principal: '<p>Este es un párrafo de texto por defecto que puedes modificar con el editor WYSIWYG.</p>',
-        url_imagen_principal: 'https://via.placeholder.com/680x200?text=Imagen+Principal', // URL de placeholder
-        // ... (añade todos los placeholders que tengas en tus templates aquí con valores por defecto)
-        titulo_columna_izquierda: '<h2>Título de Columna Izquierda (Editable)</h2>',
-        parrafo_columna_izquierda: '<p>Contenido de la columna izquierda.</p>',
-        enlace_columna_izquierda: 'https://ejemplo.com/enlace-izquierdo',
-        url_imagen_izquierda: 'https://via.placeholder.com/332x150?text=Imagen+Izq',
-        titulo_columna_derecha: '<h2>Título de Columna Derecha (Editable)</h2>',
-        parrafo_columna_derecha: '<p>Contenido de la columna derecha.</p>',
-        url_imagen_derecha: 'https://via.placeholder.com/332x150?text=Imagen+Der',
-        titulo_inferior: '<h2>Título Inferior (Editable)</h2>',
-        parrafo_inferior: '<p>Párrafo de la sección inferior.</p>',
-        enlace_inferior: 'https://ejemplo.com/enlace-inferior',
-        enlace_encuesta: 'https://ejemplo.com/encuesta',
-        titulo_agenda_deportiva: '<strong>AGENDA DEPORTIVA (Editable)</strong>',
-        titulo_pumas: '<h2>PUMAS (Editable)</h2>',
-        parrafo_pumas: '<p>Detalles sobre Pumas.</p>',
-        titulo_nfl: '<h2>NFL (Editable)</h2>',
-        parrafo_nfl: '<p>Detalles sobre NFL.</p>'
-      }
+      template_id: selectedTemplateId.value,
+      initial_content: initialContent.value // Ahora enviamos el contenido dinámico
     });
     const { uuid } = response.data;
     newEmailUrl.value = `${window.location.origin}/editar-correo/${uuid}`;
   } catch (error) {
     console.error('Error al crear nuevo correo editable:', error);
-    creationError.value = 'Error al crear correo. Revisa la consola y asegúrate de que el template seleccionado sea válido.';
+    creationError.value = error.response?.data?.message || 'Error al crear correo. Revisa la consola.';
   } finally {
     isCreatingEmail.value = false;
   }
 };
 
-onMounted(fetchTemplates);
+onMounted(fetchTemplates); // Cargar los templates al montar
 </script>
 
 <style scoped>
 .home-container {
   padding: 20px;
-  max-width: 600px;
+  max-width: 800px; /* Aumentado para acomodar más campos */
   margin: 50px auto;
   background-color: #fff;
   border-radius: 8px;
@@ -135,6 +237,14 @@ onMounted(fetchTemplates);
 h1 {
   color: #333;
   margin-bottom: 30px;
+}
+
+h2 {
+    color: #555;
+    margin-top: 30px;
+    margin-bottom: 20px;
+    border-bottom: 1px solid #eee;
+    padding-bottom: 10px;
 }
 
 .template-selection {
@@ -155,6 +265,43 @@ h1 {
   border-radius: 5px;
   font-size: 1em;
   background-color: #f9f9f9;
+}
+
+.initial-content-section {
+    text-align: left; /* Alinea los campos a la izquierda */
+    padding: 20px;
+    border: 1px solid #eee;
+    border-radius: 8px;
+    background-color: #fcfcfc;
+    margin-bottom: 20px;
+}
+
+.form-group {
+    margin-bottom: 15px;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 5px;
+    font-weight: bold;
+    color: #333;
+    font-size: 0.9em;
+}
+
+.form-group input[type="url"],
+.form-group textarea {
+    width: 100%;
+    padding: 8px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    box-sizing: border-box;
+    font-size: 0.95em;
+    min-height: 40px;
+    resize: vertical;
+}
+
+.form-group textarea {
+    min-height: 80px;
 }
 
 button {
@@ -193,7 +340,7 @@ button:disabled {
   margin-top: 20px;
   color: #28a745;
   font-weight: bold;
-  word-break: break-all; /* Para que la URL larga se rompa */
+  word-break: break-all;
 }
 
 .error-message {
@@ -206,6 +353,11 @@ button:disabled {
   color: #dc3545;
   font-size: 0.9em;
   margin-top: 5px;
+  text-align: left; /* Alinea los errores a la izquierda */
+}
+
+input.invalid, textarea.invalid, select.invalid {
+  border-color: #dc3545;
 }
 
 .info-message {

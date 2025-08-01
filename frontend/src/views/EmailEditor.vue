@@ -12,23 +12,25 @@
       <div class="editor-layout">
         <div class="controls-panel">
           <h3>Contenido Editable</h3>
-          <div v-for="(value, key) in editableContent" :key="key" class="editable-field">
-            <label :for="key">{{ capitalizeFirstLetter(key.replace(/_/g, ' ')) }}:</label>
-            <template v-if="key.includes('enlace_')">
-              <input
-                :id="key"
-                v-model="editableContent[key]"
-                @input="updatePreview"
-                type="url"
-                :class="{ 'invalid': validationErrors[key] }" />
-            </template>
-            <template v-else>
-              <TiptapEditor
-                :modelValue="editableContent[key]"
-                @update:modelValue="newValue => { editableContent[key] = newValue; updatePreview(); }"
-                :class="{ 'invalid': validationErrors[key] }" />
-            </template>
-            <p v-if="validationErrors[key]" class="validation-error">{{ validationErrors[key] }}</p>
+          <div class="scroll">
+            <div v-for="(value, key) in editableContent" :key="key" class="editable-field">
+              <label :for="key">{{ capitalizeFirstLetter(key.replace(/_/g, ' ')) }}:</label>
+              <template v-if="key.includes('enlace_')">
+                <input
+                  :id="key"
+                  v-model="editableContent[key]"
+                  @input="updatePreview"
+                  type="url"
+                  :class="{ 'invalid': validationErrors[key] }" />
+              </template>
+              <template v-else>
+                <TiptapEditor
+                  :modelValue="editableContent[key]"
+                  @update:modelValue="newValue => { editableContent[key] = newValue; updatePreview(); }"
+                  :class="{ 'invalid': validationErrors[key] }" />
+              </template>
+              <p v-if="validationErrors[key]" class="validation-error">{{ validationErrors[key] }}</p>
+            </div>
           </div>
 
           <div class="button-group">
@@ -184,22 +186,6 @@ onMounted(async () => {
   }
 });
 
-// const saveChanges = async () => {
-//   isSaving.value = true;
-//   try {
-//     await axios.put(`http://localhost:3000/api/emails-editable/${uuid.value}`, {
-//       updated_content: editableContent.value
-//     });
-//     // Ahora, en lugar de alert, usamos feedback visual
-//     showFeedback('Cambios guardados exitosamente!', 'success');
-//   } catch (err) {
-//     console.error('Error al guardar cambios:', err);
-//     showFeedback('Error al guardar cambios. Revisa la consola.', 'error');
-//   } finally {
-//     isSaving.value = false;
-//   }
-// };
-
 const saveChanges = async () => {
   // 1. Resetear errores de validación previos
   validationErrors.value = {};
@@ -354,6 +340,8 @@ h1 {
   border-radius: 8px;
   background-color: #f9f9f9;
   box-shadow: inset 0 0 5px rgba(0,0,0,0.05);
+  /* overflow-y: scroll;
+  height: 2100px; */
 }
 
 .controls-panel h3 {
@@ -432,6 +420,7 @@ button:disabled {
   padding: 20px;
   box-shadow: inset 0 0 5px rgba(0,0,0,0.05);
   min-width: 400px;
+  position: relative;
 }
 
 .preview-panel h3 {
@@ -510,6 +499,12 @@ iframe {
 .editable-field textarea.invalid,
 .editable-field .tiptap-editor-wrapper.invalid { /* Estilo para el borde si es inválido */
     border-color: #dc3545;
+}
+
+.scroll{
+  max-height: 2100px; /* Ajusta según sea necesario */
+  overflow-y: auto;
+  padding-right: 10px; /* Espacio para la barra de desplazamiento */
 }
 
 @keyframes fade-in-up {

@@ -7,12 +7,13 @@
 
     <div v-if="!loading && !error">
       <p v-if="emails.length === 0">No hay correos editables guardados aún. <router-link to="/">Crea uno nuevo</router-link>.</p>
-      
+
       <ul class="email-list">
         <li v-for="email in emails" :key="email.uuid" class="email-item">
           <div class="email-info">
             <strong>UUID:</strong> {{ email.uuid }}<br>
-            <strong>Template ID:</strong> {{ email.template_id }}<br>
+            <strong>Template ID:</strong> {{ email.template_id }} ({{ getTemplateName(email.template_id) }})<br>
+            <strong>Nombre:</strong> {{ email.name }}<br>
             <strong>Última Actualización:</strong> {{ formatDate(email.updated_at) }}
           </div>
           <div class="email-actions">
@@ -31,6 +32,7 @@ import axios from 'axios';
 import { useRouter } from 'vue-router'; // Para forzar una recarga si se elimina
 
 const emails = ref([]);
+const templates = ref([]);
 const loading = ref(true);
 const error = ref(null);
 const router = useRouter(); // Para recargar la lista después de eliminar
@@ -40,6 +42,12 @@ const formatDate = (dateString) => {
   if (!dateString) return 'N/A';
   const options = { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' };
   return new Date(dateString).toLocaleDateString('es-ES', options);
+};
+
+// Nueva función para obtener el nombre del template por su ID
+const getTemplateName = (templateId) => {
+  const template = templates.value.find(t => t.id === templateId);
+  return template ? template.name : 'Desconocido';
 };
 
 // Función para cargar la lista de correos
@@ -57,6 +65,17 @@ const fetchEmails = async () => {
   }
 };
 
+// Función para cargar la lista de templates (ya la tenemos en el backend)
+const fetchTemplatesList = async () => {
+  try {
+    const response = await axios.get('http://localhost:3000/api/templates');
+    templates.value = response.data;
+  } catch (err) {
+    console.error('Error al cargar la lista de templates:', err);
+    // No hay que detener el loading completo aquí, solo mostrar un error específico si se desea
+  }
+};
+
 // Función para eliminar un correo
 const deleteEmail = async (uuidToDelete) => {
   if (!confirm('¿Estás seguro de que quieres eliminar este correo editable?')) {
@@ -66,15 +85,42 @@ const deleteEmail = async (uuidToDelete) => {
     await axios.delete(`http://localhost:3000/api/emails-editable/${uuidToDelete}`);
     // Actualizar la lista después de eliminar
     emails.value = emails.value.filter(email => email.uuid !== uuidToDelete);
-    alert('Correo eliminado exitosamente.'); // Se puede reemplazar por feedback visual
+    // alert('Correo eliminado exitosamente.'); // Se puede reemplazar por feedback visual
+    showFeedback('Correo eliminado exitosamente.', 'success');
   } catch (err) {
     console.error('Error al eliminar correo:', err);
     alert('Error al eliminar correo. Revisa la consola.'); // Se puede reemplazar por feedback visual
   }
 };
 
+// --- Feedback Visual ---
+const feedbackMessage = ref('');
+const feedbackType = ref(''); // 'success' o 'error'
+let feedbackTimeout = null;
+
+const showFeedback = (message, type) => {
+    feedbackMessage.value = message;
+    feedbackType.value = type;
+
+    if (feedbackTimeout) {
+        clearTimeout(feedbackTimeout);
+    }
+    feedbackTimeout = setTimeout(() => {
+        feedbackMessage.value = '';
+        feedbackType.value = '';
+    }, 3000); // El mensaje desaparecerá después de 3 segundos
+};
+
 // Cargar la lista al montar el componente
-onMounted(fetchEmails);
+// onMounted(fetchEmails);
+onMounted(async () => {
+  loading.value = true;
+  await Promise.all([
+    fetchEmails(),
+    fetchTemplatesList() // Carga la lista de templates
+  ]);
+  loading.value = false;
+});
 </script>
 
 <style scoped>
@@ -173,4 +219,29 @@ h1 {
   color: #dc3545;
   font-weight: bold;
 }
+
+/* Estilos para el feedback visual */
+.feedback-message {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    padding: 15px 25px;
+    border-radius: 8px;
+    color: white;
+    font-weight: bold;
+    z-index: 1000;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+    opacity: 0;
+    transform: translateY(-20px);
+    animation: fade-in-up 0.3s forwards;
+}
+
+.feedback-message.success {
+    background-color: #28a745;
+}
+
+.feedback-message.error {
+    background-color: #dc3545;
+}
+
 </style>
