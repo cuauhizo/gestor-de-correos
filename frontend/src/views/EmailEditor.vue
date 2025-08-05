@@ -151,12 +151,12 @@ onMounted(async () => {
 
   try {
     console.log('Fetching email editable data for UUID:', uuid.value);
-    const emailResponse = await axios.get(`http://localhost:3000/api/emails-editable/${uuid.value}`);
+    const emailResponse = await axios.get(`${import.meta.env.VITE_API_URL}/api/emails-editable/${uuid.value}`);
     const { template_id, content_json } = emailResponse.data;
     console.log('Email editable data received:', emailResponse.data);
 
     console.log('Fetching template HTML for ID:', template_id);
-    const templateResponse = await axios.get(`http://localhost:3000/api/templates/${template_id}`);
+    const templateResponse = await axios.get(`${import.meta.env.VITE_API_URL}/api/templates/${template_id}`);
     templateHtml.value = templateResponse.data.html_content;
     console.log('Template HTML received (first 200 chars):', templateHtml.value.substring(0, 200) + '...');
 
@@ -209,7 +209,7 @@ const saveChanges = async () => {
 
   isSaving.value = true;
   try {
-    await axios.put(`http://localhost:3000/api/emails-editable/${uuid.value}`, {
+    await axios.put(`${import.meta.env.VITE_API_URL}/api/emails-editable/${uuid.value}`, {
       updated_content: editableContent.value
     });
     showFeedback('Cambios guardados exitosamente!', 'success');

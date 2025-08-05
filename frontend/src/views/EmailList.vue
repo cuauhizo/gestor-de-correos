@@ -54,7 +54,7 @@ const fetchEmails = async () => {
   loading.value = true;
   error.value = null;
   try {
-    const response = await axios.get('http://localhost:3000/api/emails-editable');
+    const response = await axios.get(`${import.meta.env.VITE_API_URL}/api/emails-editable`);
     emails.value = response.data;
   } catch (err) {
     console.error('Error al cargar la lista de correos:', err);
@@ -67,7 +67,7 @@ const fetchEmails = async () => {
 // Función para cargar la lista de templates (ya la tenemos en el backend)
 const fetchTemplatesList = async () => {
   try {
-    const response = await axios.get('http://localhost:3000/api/templates');
+    const response = await axios.get(`${import.meta.env.VITE_API_URL}/api/templates`);
     templates.value = response.data;
   } catch (err) {
     console.error('Error al cargar la lista de templates:', err);
@@ -81,7 +81,7 @@ const deleteEmail = async (uuidToDelete) => {
     return;
   }
   try {
-    await axios.delete(`http://localhost:3000/api/emails-editable/${uuidToDelete}`);
+    await axios.delete(`${import.meta.env.VITE_API_URL}/api/emails-editable/${uuidToDelete}`);
     // Actualizar la lista después de eliminar
     emails.value = emails.value.filter(email => email.uuid !== uuidToDelete);
     // alert('Correo eliminado exitosamente.'); // Se puede reemplazar por feedback visual

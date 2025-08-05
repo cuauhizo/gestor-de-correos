@@ -100,7 +100,7 @@ const fetchTemplates = async () => {
   loadingTemplates.value = true;
   templatesError.value = null;
   try {
-    const response = await axios.get('http://localhost:3000/api/templates');
+    const response = await axios.get(`${import.meta.env.VITE_API_URL}/api/templates`);
     templates.value = response.data;
   } catch (err) {
     console.error('Error al cargar templates:', err);
@@ -121,9 +121,9 @@ const saveTemplate = async () => {
   try {
     let response;
     if (editingTemplateId.value) {
-      response = await axios.put(`http://localhost:3000/api/templates/${editingTemplateId.value}`, currentTemplate.value);
+      response = await axios.put(`${import.meta.env.VITE_API_URL}/api/templates/${editingTemplateId.value}`, currentTemplate.value);
     } else {
-      response = await axios.post('http://localhost:3000/api/templates', currentTemplate.value);
+      response = await axios.post(`${import.meta.env.VITE_API_URL}/api/templates`, currentTemplate.value);
     }
     
     showFormFeedback(response.data.message, 'success'); // Usar el nuevo feedback
@@ -153,7 +153,7 @@ const editTemplate = async (id) => {
   formErrors.value = {};
 
   try {
-    const response = await axios.get(`http://localhost:3000/api/templates/${id}`);
+    const response = await axios.get(`${import.meta.env.VITE_API_URL}/api/templates/${id}`);
     currentTemplate.value.name = templates.value.find(t => t.id === id).name; // Obtener nombre de la lista ya cargada
     // Asegúrate de usar .value para los refs en Vue 3 Script Setup
     // currentTemplate.value.name = response.data.name; // Obtener nombre directamente de la respuesta si quieres
@@ -187,7 +187,7 @@ const deleteTemplate = async (idToDelete) => {
     return;
   }
   try {
-    await axios.delete(`http://localhost:3000/api/templates/${idToDelete}`);
+    await axios.delete(`${import.meta.env.VITE_API_URL}/api/templates/${idToDelete}`);
     showFormFeedback('Template eliminado exitosamente.', 'success'); // Usar el nuevo feedback
     fetchTemplates();
   } catch (err) {

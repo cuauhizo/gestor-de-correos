@@ -93,7 +93,7 @@ const fetchTemplates = async () => {
   loadingTemplates.value = true;
   templatesError.value = null;
   try {
-    const response = await axios.get('http://localhost:3000/api/templates');
+    const response = await axios.get(`${import.meta.env.VITE_API_URL}/api/templates`);
     templates.value = response.data;
     if (templates.value.length > 0) {
       selectedTemplateId.value = templates.value[0].id; // Seleccionar el primer template por defecto
@@ -121,7 +121,7 @@ const fetchSelectedTemplateDetails = async () => {
 
   try {
     // ESTA ES LA LLAMADA CLAVE PARA OBTENER LOS PLACEHOLDERS DEL BACKEND
-    const response = await axios.get(`http://localhost:3000/api/templates/${selectedTemplateId.value}`);
+    const response = await axios.get(`${import.meta.env.VITE_API_URL}/api/templates/${selectedTemplateId.value}`);
     selectedTemplatePlaceholders.value = response.data.placeholders;
 
     // Inicializar initialContent con valores por defecto (vacío) para los nuevos placeholders
@@ -186,7 +186,7 @@ const createNewEmail = async () => {
 
   isCreatingEmail.value = true;
   try {
-    const response = await axios.post('http://localhost:3000/api/emails-editable', {
+    const response = await axios.post(`${import.meta.env.VITE_API_URL}/api/emails-editable`, {
       template_id: selectedTemplateId.value,
       initial_content: initialContent.value // Ahora enviamos el contenido dinámico
     });
