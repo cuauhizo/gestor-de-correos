@@ -4,7 +4,7 @@
 <template>
   <main>
     <header>
-      <img alt="Tolko logo" class="logo" src="@/assets/logo.png" width="125" height="125" />
+      <img alt="Tolko logo" class="logo" src="@/assets/logo.svg" width="125" height="125" />
     </header>
     <nav class="main-nav">
       <router-link to="/" class="nav-link">Crear Nuevo Correo</router-link>
