@@ -68,8 +68,8 @@
 
 <script setup>
 import { ref, onMounted } from 'vue';
-import axios from 'axios';
-import { formatDate } from '../utils/helpers.js';
+import axios from '../services/api.js';
+// import { formatDate } from '../utils/helpers.js';
 import { useFeedback } from '../composables/useFeedback.js';
 
 const templates = ref([]);

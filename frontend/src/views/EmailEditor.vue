@@ -53,7 +53,7 @@
 
 <script setup>
 import { ref, onMounted, nextTick } from 'vue'; // <-- Importa nextTick aquí
-import axios from 'axios';
+import axios from '../services/api.js';
 import { useRoute } from 'vue-router';
 import TiptapEditor from '../components/TiptapEditor.vue';
 import { capitalizeFirstLetter, isValidUrl, getPlainTextFromHtml } from '../utils/helpers.js'; // <-- Asegúrate de estas importaciones

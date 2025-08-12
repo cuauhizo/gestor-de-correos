@@ -12,10 +12,13 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@popperjs/core": "^2.11.8",
     "@tiptap/extension-link": "^3.0.7",
     "@tiptap/starter-kit": "^3.0.7",
     "@tiptap/vue-3": "^3.0.7",
     "axios": "^1.11.0",
+    "bootstrap": "^5.3.7",
+    "pinia": "^3.0.3",
     "vue": "^3.5.18",
     "vue-router": "^4.5.1"
   },

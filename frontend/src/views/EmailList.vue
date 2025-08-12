@@ -31,7 +31,7 @@
 
 <script setup>
 import { ref, onMounted } from 'vue';
-import axios from 'axios';
+import axios from '../services/api.js';
 import { useRouter } from 'vue-router'; // Para forzar una recarga si se elimina
 import { formatDate } from '../utils/helpers.js';
 import { useFeedback } from '../composables/useFeedback.js';

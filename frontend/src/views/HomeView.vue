@@ -61,7 +61,7 @@
 
 <script setup>
 import { ref, onMounted } from 'vue';
-import axios from 'axios';
+import axios from '../services/api.js';
 import { useRouter } from 'vue-router';
 import { capitalizeFirstLetter, isValidUrl, getPlainTextFromHtml } from '../utils/helpers.js';
 
