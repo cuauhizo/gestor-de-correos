@@ -176,6 +176,9 @@ onMounted(async () => {
     }
   } finally {
     loading.value = false;
+     nextTick(() => {
+      updatePreview();
+    });
   }
 });
 
