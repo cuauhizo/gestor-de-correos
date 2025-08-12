@@ -189,24 +189,4 @@ onBeforeUnmount(() => {
   border-color: #dc3545; /* Rojo */
 }
 
-.tiptap-content :deep(p),
-.tiptap-content :deep(div),
-.tiptap-content :deep(h1),
-.tiptap-content :deep(h2),
-.tiptap-content :deep(ul),
-.tiptap-content :deep(ol) {
-    word-wrap: break-word; /* Rompe palabras que son demasiado largas para el contenedor */
-    overflow-wrap: break-word; /* Una versión más moderna de word-wrap */
-}
-
-/* Reglas específicas para los enlaces y código que se desbordan */
-.tiptap-content :deep(a),
-.tiptap-content :deep(code) {
-    word-break: break-all; /* Rompe la cadena de texto en cualquier carácter */
-}
-
-.tiptap-content {
-  overflow-x: hidden; /* Oculta cualquier desbordamiento horizontal a nivel del contenedor */
-}
-
 </style>

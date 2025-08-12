@@ -28,7 +28,13 @@ const router = createRouter({
       path: '/gestionar-templates', // <-- Añade esta nueva ruta
       name: 'template-manager',
       component: TemplateManager
-    }
+    },
+    // Ruta comodín para 404
+    {
+      path: '/:pathMatch(.*)*',
+      name: 'NotFound',
+      component: () => import('@/views/NotFound.vue'),
+    },
   ]
 });
 
