@@ -12,8 +12,8 @@
         <li v-for="email in emails" :key="email.uuid" class="email-item">
           <div class="email-info">
             <strong>UUID:</strong> {{ email.uuid }}<br>
-            <strong>Template ID:</strong> {{ email.template_id }} ({{ getTemplateName(email.template_id) }})<br>
-            <strong>Nombre:</strong> {{ email.name }}<br>
+            <strong>Creado por:</strong> {{ email.creator_username || 'Usuario desconocido' }}<br>
+            <strong>Última modificación por:</strong> {{ email.last_modifier_username || 'Usuario desconocido' }}<br>
             <strong>Última Actualización:</strong> {{ formatDate(email.updated_at) }}
           </div>
           <div class="email-actions">
@@ -37,17 +37,17 @@ import { formatDate } from '../utils/helpers.js';
 import { useFeedback } from '../composables/useFeedback.js';
 
 const emails = ref([]);
-const templates = ref([]);
+// const templates = ref([]);
 const loading = ref(true);
 const error = ref(null);
 const router = useRouter(); // Para recargar la lista después de eliminar
 const { feedbackMessage, feedbackType, showFeedback } = useFeedback();
 
 // Nueva función para obtener el nombre del template por su ID
-const getTemplateName = (templateId) => {
-  const template = templates.value.find(t => t.id === templateId);
-  return template ? template.name : 'Desconocido';
-};
+// const getTemplateName = (templateId) => {
+//   const template = templates.value.find(t => t.id === templateId);
+//   return template ? template.name : 'Desconocido';
+// };
 
 // Función para cargar la lista de correos
 const fetchEmails = async () => {
@@ -65,15 +65,15 @@ const fetchEmails = async () => {
 };
 
 // Función para cargar la lista de templates (ya la tenemos en el backend)
-const fetchTemplatesList = async () => {
-  try {
-    const response = await axios.get(`${import.meta.env.VITE_API_URL}/api/templates`);
-    templates.value = response.data;
-  } catch (err) {
-    console.error('Error al cargar la lista de templates:', err);
-    // No hay que detener el loading completo aquí, solo mostrar un error específico si se desea
-  }
-};
+// const fetchTemplatesList = async () => {
+//   try {
+//     const response = await axios.get(`${import.meta.env.VITE_API_URL}/api/templates`);
+//     templates.value = response.data;
+//   } catch (err) {
+//     console.error('Error al cargar la lista de templates:', err);
+//     // No hay que detener el loading completo aquí, solo mostrar un error específico si se desea
+//   }
+// };
 
 // Función para eliminar un correo
 const deleteEmail = async (uuidToDelete) => {
@@ -94,14 +94,15 @@ const deleteEmail = async (uuidToDelete) => {
 
 // Cargar la lista al montar el componente
 // onMounted(fetchEmails);
-onMounted(async () => {
-  loading.value = true;
-  await Promise.all([
-    fetchEmails(),
-    fetchTemplatesList() // Carga la lista de templates
-  ]);
-  loading.value = false;
-});
+// onMounted(async () => {
+//   loading.value = true;
+//   await Promise.all([
+//     fetchEmails(),
+//     fetchTemplatesList() // Carga la lista de templates
+//   ]);
+//   loading.value = false;
+// });
+onMounted(fetchEmails);
 </script>
 
 <style scoped>

@@ -275,6 +275,7 @@ app.put(
 
         const { uuid } = req.params;
         const { updated_content } = req.body;
+        const user_id = req.user.id; 
 
         // 6. Validación adicional de contenido real para campos de texto WYSIWYG y URLs
         //    Este bucle es muy efectivo para validar todos tus campos dinámicos
@@ -300,8 +301,8 @@ app.put(
 
         try {
             const [result] = await pool.execute(
-                'UPDATE emails_editable SET content_json = ? WHERE uuid = ?',
-                [JSON.stringify(updated_content), uuid]
+                'UPDATE emails_editable SET content_json = ?, last_modified_by = ?, updated_at = CURRENT_TIMESTAMP WHERE uuid = ?',
+                [JSON.stringify(updated_content), user_id, uuid]
             );
 
             if (result.affectedRows === 0) {
@@ -319,14 +320,23 @@ app.put(
 app.get('/api/emails-editable', protect, async (req, res) => {
     try {
         // const [rows] = await pool.query('SELECT uuid, template_id, content_json, created_at, updated_at FROM emails_editable');
-        const [rows] = await pool.query('SELECT e.uuid, e.template_id, t.name, e.content_json, e.created_at, e.updated_at FROM emails_editable e JOIN templates t ON e.template_id = t.id');
-        // Asegúrate de parsear el JSON antes de enviarlo
-        const emails = rows.map(row => ({
-            ...row,
-            content_json: JSON.parse(row.content_json)
-        }));
-        // console.log(emails);
-        res.json(emails);
+        // const [rows] = await pool.query('SELECT e.uuid, e.template_id, t.name, e.content_json, e.created_at, e.updated_at FROM emails_editable e JOIN templates t ON e.template_id = t.id');
+        // Consulta SQL modificada para incluir el nombre de usuario
+        const [rows] = await pool.query(`
+            SELECT 
+                e.uuid, 
+                e.template_id, 
+                e.created_at, 
+                e.updated_at,
+                uc.username AS creator_username,
+                um.username AS last_modifier_username
+            FROM emails_editable e
+            LEFT JOIN users uc ON e.user_id = uc.id
+            LEFT JOIN users um ON e.last_modified_by = um.id
+            ORDER BY e.updated_at DESC
+        `);
+
+        res.json(rows);
     } catch (error) {
         console.error('Error al obtener lista de correos editables:', error);
         res.status(500).json({ message: 'Error interno del servidor al obtener la lista de correos editables.' });
