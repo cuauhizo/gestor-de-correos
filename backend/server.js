@@ -325,7 +325,7 @@ app.get('/api/emails-editable', protect, async (req, res) => {
             ...row,
             content_json: JSON.parse(row.content_json)
         }));
-        console.log(emails);
+        // console.log(emails);
         res.json(emails);
     } catch (error) {
         console.error('Error al obtener lista de correos editables:', error);

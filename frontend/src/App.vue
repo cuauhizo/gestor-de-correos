@@ -3,22 +3,8 @@ import { useAuthStore } from './stores/auth.js'; // <-- Importa el store
 const authStore = useAuthStore(); // <-- Instancia el store
 </script>
 
-<!-- <template>
-  <main>
-    <header>
-      <img alt="Tolko logo" class="logo" src="@/assets/logo.svg" width="125" height="125" />
-    </header>
-    <nav class="main-nav">
-      <router-link to="/" class="nav-link">Crear Nuevo Correo</router-link>
-      <router-link to="/lista-correos" class="nav-link">Ver Correos Guardados</router-link>
-      <router-link to="/gestionar-templates" class="nav-link">Gestionar Templates</router-link> 
-    </nav>
-    <router-view />
-  </main>
-</template> -->
-
 <template>
-  <div id="app" class="bg-light min-vh-100">
+  <div class="bg-light min-vh-100">
     <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
       <div class="container-fluid">
         <a class="navbar-brand" href="#">Gestor de Correos</a>
