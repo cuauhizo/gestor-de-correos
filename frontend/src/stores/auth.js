@@ -28,7 +28,12 @@ export const useAuthStore = defineStore('auth', {
         localStorage.setItem('token', this.token);
 
         // Redirigir a la página principal después del login
-        router.push('/');
+        // --- Lógica de redirección mejorada ---
+        if (this.isAdmin) {
+          router.push('/');
+        } else {
+          router.push('/lista-correos'); // Redirige a los editores a la lista de correos
+        }
       } catch (error) {
         this.error = error.response?.data?.message || 'Error de conexión o credenciales inválidas.';
       } finally {

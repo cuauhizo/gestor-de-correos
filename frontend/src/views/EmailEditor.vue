@@ -1,50 +1,61 @@
 <template>
-  <div class="email-editor-container">
-    <h1>Editor de Contenido de Correo</h1>
+  <div class="container-fluid py-4">
+    <div class="row">
+      <div class="col-12 text-center mb-4">
+        <h1>Editor de Contenido de Correo</h1>
+      </div>
+      <div class="col-12">
+        <div v-if="loading" class="text-center text-secondary">Cargando correo...</div>
+        <div v-if="error" class="alert alert-danger text-center">{{ error }}</div>
 
-    <template v-if="loading">
-      <div class="loading">Cargando correo...</div>
-    </template>
-    <template v-else-if="error">
-      <div class="error">{{ error }}</div>
-    </template>
-    <template v-else>
-      <div class="editor-layout">
-        <div class="controls-panel">
-          <h3>Contenido Editable</h3>
-          <div class="scroll">
-            <div v-for="(value, key) in editableContent" :key="key" class="editable-field">
-              <label :for="key">{{ capitalizeFirstLetter(key.replace(/_/g, ' ')) }}:</label>
-              <template v-if="key.includes('enlace_')">
-                <input
-                  :id="key"
-                  v-model="editableContent[key]"
-                  @input="updatePreview"
-                  type="url"
-                  :class="{ 'invalid': validationErrors[key] }" />
-              </template>
-              <template v-else>
-                <TiptapEditor
-                  :modelValue="editableContent[key]"
-                  @update:modelValue="newValue => { editableContent[key] = newValue; updatePreview(); }"
-                  :class="{ 'invalid': validationErrors[key] }" />
-              </template>
-              <p v-if="validationErrors[key]" class="validation-error">{{ validationErrors[key] }}</p>
+        <div v-if="!loading && !error" class="row g-4">
+          <div class="col-md-4">
+            <div class="card p-3 h-100">
+              <h3 class="card-title text-center mb-3">Contenido Editable</h3>
+              <div class="scroll">
+                <div v-for="(value, key) in editableContent" :key="key" class="mb-3">
+                  <label :for="key" class="form-label fw-bold">{{ capitalizeFirstLetter(key.replace(/_/g, ' ')) }}:</label>
+                  <template v-if="key.includes('enlace_')">
+                    <input
+                      :id="key"
+                      v-model="editableContent[key]"
+                      @input="updatePreview"
+                      type="url"
+                      class="form-control"
+                      :class="{ 'is-invalid': validationErrors[key] }"
+                    />
+                  </template>
+                  <template v-else>
+                    <TiptapEditor
+                      :modelValue="editableContent[key]"
+                      @update:modelValue="newValue => { editableContent[key] = newValue; updatePreview(); }"
+                      :class="{ 'is-invalid': validationErrors[key] }"
+                    />
+                  </template>
+                  <div v-if="validationErrors[key]" class="invalid-feedback d-block">{{ validationErrors[key] }}</div>
+                </div>
+              </div>
+              <div class="d-flex flex-wrap justify-content-center gap-2 mt-3">
+                <router-link to="/lista-correos" class="btn btn-danger">Cancelar</router-link>
+                <button @click="saveChanges" :disabled="isSaving" class="btn btn-primary">
+                  {{ isSaving ? 'Guardando...' : 'Guardar Cambios' }}
+                </button>
+                <button @click="copyHtmlToClipboard" class="btn btn-success">
+                  Copiar HTML Final
+                </button>
+              </div>
             </div>
           </div>
 
-          <div class="button-group">
-            <button @click="saveChanges" :disabled="isSaving">{{ isSaving ? 'Guardando...' : 'Guardar Cambios' }}</button>
-            <button @click="copyHtmlToClipboard" class="generate-html-button">Copiar HTML Final</button>
+          <div class="col-md-8">
+            <div class="card p-3 h-100">
+              <h3 class="card-title text-center mb-3">Previsualización del Correo</h3>
+              <iframe ref="previewIframe" :style="{ width: previewWidth, height: '2100px' }" class="w-100 border rounded shadow-sm"></iframe>
+            </div>
           </div>
         </div>
-
-        <div class="preview-panel">
-          <h3>Previsualización del Correo</h3>
-          <iframe ref="previewIframe" :style="{ width: previewWidth, height: '2100px', border: '1px solid #ccc', 'background-color': 'white' }"></iframe>
-        </div>
       </div>
-    </template>
+    </div>
     <div v-if="feedbackMessage" :class="['feedback-message', feedbackType]">
       {{ feedbackMessage }}
     </div>
@@ -52,12 +63,19 @@
 </template>
 
 <script setup>
-import { ref, onMounted, nextTick } from 'vue'; // <-- Importa nextTick aquí
+import { ref, onMounted, nextTick, onBeforeUnmount  } from 'vue'; // <-- Importa nextTick aquí
 import axios from '../services/api.js';
-import { useRoute } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import TiptapEditor from '../components/TiptapEditor.vue';
 import { capitalizeFirstLetter, isValidUrl, getPlainTextFromHtml } from '../utils/helpers.js'; // <-- Asegúrate de estas importaciones
 import { useFeedback } from '../composables/useFeedback.js'; // <-- Asegúrate de esta importación
+import { useAuthStore } from '../stores/auth.js';
+
+
+const router = useRouter(); // Instancia el router
+const authStore = useAuthStore(); // Instancia el store de autenticación
+const isLocked = ref(false);
+const lockedByUsername = ref(null);
 
 const validationErrors = ref({});
 const route = useRoute();
@@ -140,6 +158,55 @@ const updatePreview = () => {
   previewIframe.value.contentWindow.document.close();
 };
 
+// onMounted(async () => {
+//   console.log('EmailEditor mounted. UUID:', uuid.value);
+
+//   if (!uuid.value) {
+//     error.value = 'UUID de correo no proporcionado.';
+//     loading.value = false;
+//     return;
+//   }
+
+//   try {
+//     console.log('Fetching email editable data for UUID:', uuid.value);
+//     const emailResponse = await axios.get(`${import.meta.env.VITE_API_URL}/api/emails-editable/${uuid.value}`);
+//     const { template_id, content_json, is_locked, locked_by_user_id } = emailResponse.data;
+    
+//     // Asignar el estado de bloqueo
+//     isLocked.value = is_locked;
+//     if (is_locked && locked_by_user_id) {
+//         // En un caso real, obtendrías el nombre del usuario del backend.
+//         // Para este ejemplo, solo verificamos si el bloqueo no es del usuario actual.
+//         if (locked_by_user_id !== authStore.user.id) {
+//             lockedByUsername.value = 'otro usuario';
+//         }
+//     }
+
+//     console.log('Fetching template HTML for ID:', template_id);
+//     const templateResponse = await axios.get(`${import.meta.env.VITE_API_URL}/api/templates/${template_id}`);
+//     templateHtml.value = templateResponse.data.html_content;
+
+//     editableContent.value = content_json;
+    
+//     nextTick(() => {
+//       updatePreview();
+//     });
+
+//   } catch (err) {
+//     console.error('Error al cargar datos del correo o template:', err);
+//     if (err.response && err.response.status === 404) {
+//         error.value = 'Correo o template no encontrado. Verifica la URL.';
+//     } else {
+//         error.value = `Error al cargar. Asegúrate de que el backend está funcionando: ${err.message}`;
+//     }
+//   } finally {
+//     loading.value = false;
+//     nextTick(() => {
+//       updatePreview();
+//     });
+//   }
+// });
+
 onMounted(async () => {
   console.log('EmailEditor mounted. UUID:', uuid.value);
 
@@ -150,22 +217,30 @@ onMounted(async () => {
   }
 
   try {
-    console.log('Fetching email editable data for UUID:', uuid.value);
-    const emailResponse = await axios.get(`${import.meta.env.VITE_API_URL}/api/emails-editable/${uuid.value}`);
-    const { template_id, content_json } = emailResponse.data;
-    console.log('Email editable data received:', emailResponse.data);
+        const emailResponse = await axios.get(`${import.meta.env.VITE_API_URL}/api/emails-editable/${uuid.value}`);
+        const { template_id, content_json, is_locked, locked_by_user_id } = emailResponse.data;
+        
+        // Verifica si el correo está bloqueado y si el usuario actual es el que tiene el bloqueo
+        if (is_locked && locked_by_user_id === authStore.user.id) {
+            isLocked.value = true;
+        } else if (is_locked && locked_by_user_id !== authStore.user.id) {
+            isLocked.value = false;
+            // Tendrías que hacer una llamada extra para obtener el nombre de usuario
+            // del que tiene el bloqueo, o hacer que el backend lo devuelva.
+            // Por ahora, 'otro usuario' es suficiente.
+            lockedByUsername.value = 'otro usuario';
+        } else {
+            // Si el correo no está bloqueado, lo bloqueamos ahora
+            await acquireLock();
+        }
 
-    console.log('Fetching template HTML for ID:', template_id);
-    const templateResponse = await axios.get(`${import.meta.env.VITE_API_URL}/api/templates/${template_id}`);
-    templateHtml.value = templateResponse.data.html_content;
-    console.log('Template HTML received (first 200 chars):', templateHtml.value.substring(0, 200) + '...');
+        const templateResponse = await axios.get(`${import.meta.env.VITE_API_URL}/api/templates/${template_id}`);
+        templateHtml.value = templateResponse.data.html_content;
+        editableContent.value = content_json;
 
-    editableContent.value = content_json;
-    
-    // !!! ESTE ES EL CAMBIO CLAVE: Envuelve updatePreview() con nextTick() !!!
-    nextTick(() => {
-      updatePreview();
-    });
+        nextTick(() => {
+            updatePreview();
+        });
 
   } catch (err) {
     console.error('Error al cargar datos del correo o template:', err);
@@ -176,13 +251,26 @@ onMounted(async () => {
     }
   } finally {
     loading.value = false;
-     nextTick(() => {
+    nextTick(() => {
       updatePreview();
     });
   }
 });
 
+// Liberar el bloqueo cuando el usuario se va del editor
+
+onBeforeUnmount(async () => {
+    if (isLocked.value) {
+        await releaseLock();
+    }
+});
+
 const saveChanges = async () => {
+  if (!isLocked.value) {
+        showFeedback('No tienes permiso para guardar. El correo no está bloqueado por ti.', 'error');
+        return;
+    }
+
   validationErrors.value = {};
   let hasValidationErrors = false;
   for (const key in editableContent.value) {
@@ -247,179 +335,39 @@ const copyHtmlToClipboard = () => {
     });
 };
 
-const setPreviewWidth = (type) => {
-  if (type === 'desktop') {
-    previewWidth.value = '772px';
-  } else if (type === 'mobile') {
-    previewWidth.value = '320px';
-  }
-  updatePreview();
+// NUEVA FUNCIÓN: Adquirir el bloqueo
+const acquireLock = async () => {
+    try {
+        await axios.post(`${import.meta.env.VITE_API_URL}/api/emails-editable/${uuid.value}/lock`);
+        isLocked.value = true;
+        showFeedback('Correo bloqueado para edición.', 'success');
+    } catch (err) {
+        if (err.response?.status === 409) { // 409 Conflict
+            isLocked.value = false;
+            lockedByUsername.value = err.response.data.message.split('por ')[1].split('.')[0];
+            showFeedback(`Este correo está siendo editado por ${lockedByUsername.value}.`, 'error');
+        } else {
+            error.value = 'Error al adquirir el bloqueo. No se puede editar.';
+            showFeedback('Error al adquirir el bloqueo.', 'error');
+        }
+    }
 };
+
+// NUEVA FUNCIÓN: Liberar el bloqueo
+const releaseLock = async () => {
+    try {
+        await axios.post(`${import.meta.env.VITE_API_URL}/api/emails-editable/${uuid.value}/unlock`);
+        isLocked.value = false;
+        showFeedback('Correo desbloqueado.', 'success');
+    } catch (err) {
+        // Si el desbloqueo falla, el servidor lo gestionará, pero es bueno manejarlo
+        console.error('Error al liberar el bloqueo:', err);
+    }
+};
+
 </script>
 
 <style scoped>
-.email-editor-container {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: 20px;
-  font-family: Arial, sans-serif;
-  min-height: 100vh;
-  background-color: #f0f2f5;
-  position: relative; /* Para posicionar el feedback */
-}
-
-h1 {
-  color: #333;
-  margin-bottom: 20px;
-}
-
-.editor-layout {
-  display: flex;
-  flex-wrap: wrap;
-  width: 100%;
-  max-width: 1400px;
-  gap: 20px;
-  margin-top: 20px;
-  background-color: #fff;
-  border-radius: 8px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-  padding: 20px;
-}
-
-.controls-panel {
-  flex: 1;
-  min-width: 300px;
-  padding: 20px;
-  border: 1px solid #eee;
-  border-radius: 8px;
-  background-color: #f9f9f9;
-  box-shadow: inset 0 0 5px rgba(0,0,0,0.05);
-  /* overflow-y: scroll;
-  height: 2100px; */
-}
-
-.controls-panel h3 {
-  margin-top: 0;
-  color: #555;
-  border-bottom: 1px solid #ddd;
-  padding-bottom: 10px;
-  margin-bottom: 20px;
-}
-
-.editable-field {
-  margin-bottom: 15px;
-}
-
-.editable-field label {
-  display: block;
-  margin-bottom: 5px;
-  font-weight: bold;
-  color: #333;
-  font-size: 0.9em;
-}
-
-.editable-field input[type="url"] {
-  width: 100%;
-  padding: 10px;
-  border: 1px solid #ccc;
-  border-radius: 4px;
-  box-sizing: border-box;
-  font-size: 0.95em;
-  height: 38px;
-  background-color: #fff;
-}
-
-.button-group {
-    display: flex;
-    gap: 10px;
-    margin-top: 20px;
-    flex-wrap: wrap;
-}
-
-button {
-  background-color: #007bff;
-  color: white;
-  padding: 10px 20px;
-  border: none;
-  border-radius: 5px;
-  cursor: pointer;
-  font-size: 16px;
-  transition: background-color 0.3s ease;
-}
-
-button:hover {
-  background-color: #0056b3;
-}
-
-button:disabled {
-    background-color: #cccccc;
-    cursor: not-allowed;
-}
-
-.generate-html-button {
-    background-color: #28a745;
-}
-.generate-html-button:hover {
-    background-color: #218838;
-}
-
-.preview-panel {
-  flex: 2;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  border: 1px solid #eee;
-  border-radius: 8px;
-  background-color: #fff;
-  padding: 20px;
-  box-shadow: inset 0 0 5px rgba(0,0,0,0.05);
-  min-width: 400px;
-  position: relative;
-}
-
-.preview-panel h3 {
-  margin-top: 0;
-  color: #555;
-  border-bottom: 1px solid #ddd;
-  padding-bottom: 10px;
-  margin-bottom: 20px;
-}
-
-.preview-controls {
-    margin-bottom: 15px;
-}
-.preview-controls button {
-    background-color: #6c757d;
-    margin: 0 5px;
-    padding: 8px 15px;
-    font-size: 14px;
-}
-.preview-controls button:hover {
-    background-color: #5a6268;
-}
-
-iframe {
-  width: 100%;
-  height: 2100px;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  background-color: white;
-  box-shadow: 0 0 10px rgba(0,0,0,0.1);
-  transition: width 0.3s ease-in-out;
-  max-width: 100%;
-}
-
-.loading, .error {
-  margin-top: 20px;
-  font-size: 1.2em;
-  color: #555;
-  text-align: center;
-}
-.error {
-  color: #dc3545;
-  font-weight: bold;
-}
 
 /* Estilos para el feedback visual */
 .feedback-message {
@@ -470,17 +418,6 @@ iframe {
     to {
         opacity: 1;
         transform: translateY(0);
-    }
-}
-
-
-@media (max-width: 768px) {
-    .editor-layout {
-        flex-direction: column;
-    }
-    .controls-panel, .preview-panel {
-        min-width: unset;
-        width: 100%;
     }
 }
 </style>

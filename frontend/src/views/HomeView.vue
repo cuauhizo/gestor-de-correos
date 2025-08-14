@@ -1,69 +1,71 @@
 <template>
-  <div class="home-container">
-    <h1>Bienvenido al Creador de Correos</h1>
+  <div class="card p-4 mt-5 mx-auto" style="max-width: 900px;">
+    <h1 class="card-title text-center mb-4">Bienvenido al Creador de Correos</h1>
 
-    <div v-if="loadingTemplates" class="loading">Cargando templates disponibles...</div>
-    <div v-if="templatesError" class="error">{{ templatesError }}</div>
+    <div v-if="loadingTemplates" class="text-center text-secondary">Cargando templates disponibles...</div>
+    <div v-if="templatesError" class="text-center text-danger">{{ templatesError }}</div>
 
     <div v-if="!loadingTemplates && !templatesError">
-      <div v-if="templates.length > 0" class="template-selection">
-        <label for="selectTemplate">Selecciona un Template:</label>
-        <select id="selectTemplate" v-model="selectedTemplateId" @change="fetchSelectedTemplateDetails">
+      <div v-if="templates.length > 0" class="mb-4">
+        <label for="selectTemplate" class="form-label d-block">Selecciona un Template:</label>
+        <select id="selectTemplate" class="form-select" v-model="selectedTemplateId" @change="fetchSelectedTemplateDetails">
           <option value="" disabled>-- Selecciona un template --</option>
           <option v-for="template in templates" :key="template.id" :value="template.id">
             {{ template.name }} (ID: {{ template.id }})
           </option>
         </select>
-        <p v-if="!selectedTemplateId && !loadingTemplates" class="validation-error">Por favor, selecciona un template para crear un correo.</p>
+        <p v-if="!selectedTemplateId && !loadingTemplates" class="text-danger mt-2">Por favor, selecciona un template para crear un correo.</p>
       </div>
-      <p v-else class="info-message">No hay templates disponibles. Por favor, <router-link to="/gestionar-templates">añade un template primero</router-link>.</p>
-      
-      <div v-if="selectedTemplateId && selectedTemplatePlaceholders.length > 0" class="initial-content-section">
-        <h2>Contenido Inicial para {{ getTemplateName(selectedTemplateId) }}</h2>
-        <div v-for="placeholder in selectedTemplatePlaceholders" :key="placeholder" class="form-group">
-          <label :for="`initial-${placeholder}`">{{ capitalizeFirstLetter(placeholder.replace(/_/g, ' ')) }}:</label>
+      <p v-else class="text-secondary">No hay templates disponibles. Por favor, <router-link to="/gestionar-templates">añade un template primero</router-link>.</p>
+
+      <div v-if="selectedTemplateId && selectedTemplatePlaceholders.length > 0" class="p-4 border rounded bg-light mb-4 text-start">
+        <h2 class="h5 border-bottom pb-2 mb-3">Contenido Inicial para {{ getTemplateName(selectedTemplateId) }}</h2>
+        <div v-for="placeholder in selectedTemplatePlaceholders" :key="placeholder" class="mb-3">
+          <label :for="`initial-${placeholder}`" class="form-label">{{ capitalizeFirstLetter(placeholder.replace(/_/g, ' ')) }}:</label>
           <template v-if="placeholder.includes('enlace_') || placeholder.includes('url_imagen_')">
-            <input 
-              type="url" 
-              :id="`initial-${placeholder}`" 
-              v-model="initialContent[placeholder]" 
+            <input
+              type="url"
+              :id="`initial-${placeholder}`"
+              v-model="initialContent[placeholder]"
               placeholder="Introduce URL"
-              :class="{ 'invalid': initialContentErrors[placeholder] }"
+              :class="['form-control', { 'is-invalid': initialContentErrors[placeholder] }]"
             />
           </template>
           <template v-else>
-            <textarea 
-              :id="`initial-${placeholder}`" 
-              v-model="initialContent[placeholder]" 
+            <textarea
+              :id="`initial-${placeholder}`"
+              v-model="initialContent[placeholder]"
               placeholder="Introduce texto o HTML"
-              :class="{ 'invalid': initialContentErrors[placeholder] }"
+              :class="['form-control', { 'is-invalid': initialContentErrors[placeholder] }]"
             ></textarea>
           </template>
-          <p v-if="initialContentErrors[placeholder]" class="validation-error">{{ initialContentErrors[placeholder] }}</p>
+          <p v-if="initialContentErrors[placeholder]" class="invalid-feedback d-block">{{ initialContentErrors[placeholder] }}</p>
         </div>
       </div>
-      <p v-else-if="selectedTemplateId && selectedTemplatePlaceholders.length === 0" class="info-message">Este template no contiene campos editables.</p>
+      <p v-else-if="selectedTemplateId && selectedTemplatePlaceholders.length === 0" class="text-secondary">Este template no contiene campos editables.</p>
 
 
-      <button 
-        @click="createNewEmail" 
+      <button
+        @click="createNewEmail"
         :disabled="!selectedTemplateId || isCreatingEmail || loadingTemplateDetails"
+        class="btn btn-primary"
       >
         {{ isCreatingEmail ? 'Creando...' : 'Crear Nuevo Correo Editable' }}
       </button>
-      <p v-if="newEmailUrl" class="success-message">
+      <p v-if="newEmailUrl" class="text-success mt-3" style="word-break: break-all;">
         Enlace de edición: <a :href="newEmailUrl" target="_blank">{{ newEmailUrl }}</a>
       </p>
-      <p v-if="creationError" class="error-message">{{ creationError }}</p>
+      <p v-if="creationError" class="text-danger mt-3">{{ creationError }}</p>
     </div>
   </div>
 </template>
 
 <script setup>
 import { ref, onMounted } from 'vue';
-import axios from '../services/api.js';
+import axios from '../services/api.js'; // Ajusta la ruta a tu servicio de axios
 import { useRouter } from 'vue-router';
 import { capitalizeFirstLetter, isValidUrl, getPlainTextFromHtml } from '../utils/helpers.js';
+import { useAuthStore } from '../stores/auth.js';
 
 
 const router = useRouter();
@@ -120,19 +122,15 @@ const fetchSelectedTemplateDetails = async () => {
   initialContentErrors.value = {}; // Resetear errores al cambiar de template
 
   try {
-    // ESTA ES LA LLAMADA CLAVE PARA OBTENER LOS PLACEHOLDERS DEL BACKEND
     const response = await axios.get(`${import.meta.env.VITE_API_URL}/api/templates/${selectedTemplateId.value}`);
     selectedTemplatePlaceholders.value = response.data.placeholders;
 
-    // Inicializar initialContent con valores por defecto (vacío) para los nuevos placeholders
     const newInitialContent = {};
     selectedTemplatePlaceholders.value.forEach(placeholder => {
-        // Podrías poner valores por defecto más inteligentes aquí si lo deseas
-        // Por ejemplo, para enlaces, un placeholder de URL
         if (placeholder.includes('enlace_') || placeholder.includes('url_imagen_')) {
-            newInitialContent[placeholder] = ''; // O 'https://via.placeholder.com/200' para imágenes
+            newInitialContent[placeholder] = '';
         } else {
-            newInitialContent[placeholder] = ''; // O '<p>Contenido por defecto...</p>'
+            newInitialContent[placeholder] = '';
         }
     });
     initialContent.value = newInitialContent;
@@ -149,17 +147,16 @@ const fetchSelectedTemplateDetails = async () => {
 // --- Creación de Nuevo Correo Editable ---
 const createNewEmail = async () => {
   creationError.value = null;
-  initialContentErrors.value = {}; // Limpiar errores de validación de contenido inicial
+  initialContentErrors.value = {};
 
   if (!selectedTemplateId.value) {
     creationError.value = 'Por favor, selecciona un template para crear un correo.';
     return;
   }
 
-  // Validar el contenido inicial antes de enviarlo
   let hasValidationErrors = false;
   for (const placeholder of selectedTemplatePlaceholders.value) {
-    const value = initialContent.value[placeholder] || ''; // Obtener valor, si no existe, es vacío
+    const value = initialContent.value[placeholder] || '';
 
     if (placeholder.includes('enlace_') || placeholder.includes('url_imagen_')) {
       if (!value) {
@@ -188,7 +185,7 @@ const createNewEmail = async () => {
   try {
     const response = await axios.post(`${import.meta.env.VITE_API_URL}/api/emails-editable`, {
       template_id: selectedTemplateId.value,
-      initial_content: initialContent.value // Ahora enviamos el contenido dinámico
+      initial_content: initialContent.value
     });
     const { uuid } = response.data;
     newEmailUrl.value = `${window.location.origin}/editar-correo/${uuid}`;
@@ -200,149 +197,9 @@ const createNewEmail = async () => {
   }
 };
 
-onMounted(fetchTemplates); // Cargar los templates al montar
+onMounted(fetchTemplates);
 </script>
 
 <style scoped>
-.home-container {
-  padding: 20px;
-  max-width: 800px; /* Aumentado para acomodar más campos */
-  margin: 50px auto;
-  background-color: #fff;
-  border-radius: 8px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-  font-family: Arial, sans-serif;
-  text-align: center;
-}
-
-h1 {
-  color: #333;
-  margin-bottom: 30px;
-}
-
-h2 {
-    color: #555;
-    margin-top: 30px;
-    margin-bottom: 20px;
-    border-bottom: 1px solid #eee;
-    padding-bottom: 10px;
-}
-
-.template-selection {
-  margin-bottom: 25px;
-}
-
-.template-selection label {
-  display: block;
-  margin-bottom: 10px;
-  font-size: 1.1em;
-  color: #555;
-}
-
-.template-selection select {
-  width: 100%;
-  padding: 10px;
-  border: 1px solid #ccc;
-  border-radius: 5px;
-  font-size: 1em;
-  background-color: #f9f9f9;
-}
-
-.initial-content-section {
-    text-align: left; /* Alinea los campos a la izquierda */
-    padding: 20px;
-    border: 1px solid #eee;
-    border-radius: 8px;
-    background-color: #fcfcfc;
-    margin-bottom: 20px;
-}
-
-.form-group {
-    margin-bottom: 15px;
-}
-
-.form-group label {
-    display: block;
-    margin-bottom: 5px;
-    font-weight: bold;
-    color: #333;
-    font-size: 0.9em;
-}
-
-.form-group input[type="url"],
-.form-group textarea {
-    width: 100%;
-    padding: 8px;
-    border: 1px solid #ccc;
-    border-radius: 4px;
-    box-sizing: border-box;
-    font-size: 0.95em;
-    min-height: 40px;
-    resize: vertical;
-}
-
-.form-group textarea {
-    min-height: 80px;
-}
-
-button {
-  background-color: #007bff;
-  color: white;
-  padding: 12px 25px;
-  border: none;
-  border-radius: 5px;
-  cursor: pointer;
-  font-size: 1.1em;
-  transition: background-color 0.3s ease;
-  margin-top: 20px;
-}
-
-button:hover {
-  background-color: #0056b3;
-}
-
-button:disabled {
-  background-color: #cccccc;
-  cursor: not-allowed;
-}
-
-.loading, .error {
-  margin-top: 20px;
-  font-size: 1.2em;
-  color: #555;
-}
-
-.error {
-  color: #dc3545;
-  font-weight: bold;
-}
-
-.success-message {
-  margin-top: 20px;
-  color: #28a745;
-  font-weight: bold;
-  word-break: break-all;
-}
-
-.error-message {
-  color: #dc3545;
-  margin-top: 15px;
-  font-weight: bold;
-}
-
-.validation-error {
-  color: #dc3545;
-  font-size: 0.9em;
-  margin-top: 5px;
-  text-align: left; /* Alinea los errores a la izquierda */
-}
-
-input.invalid, textarea.invalid, select.invalid {
-  border-color: #dc3545;
-}
-
-.info-message {
-    color: #6c757d;
-    margin-top: 20px;
-}
+/* El bloque de estilos CSS ya no es necesario aquí */
 </style>

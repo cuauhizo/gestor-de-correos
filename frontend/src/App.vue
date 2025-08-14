@@ -1,6 +1,6 @@
 <script setup>
-import { useAuthStore } from './stores/auth.js'; // <-- Importa el store
-const authStore = useAuthStore(); // <-- Instancia el store
+import { useAuthStore } from './stores/auth.js';
+const authStore = useAuthStore();
 </script>
 
 <template>
@@ -14,23 +14,23 @@ const authStore = useAuthStore(); // <-- Instancia el store
         <div class="collapse navbar-collapse" id="navbarNav">
           <ul class="navbar-nav">
             <template v-if="authStore.isAuthenticated">
-              <li class="nav-item">
-                <router-link to="/" class="nav-link">Crear Nuevo Correo</router-link>
+              <li class="nav-item" v-if="authStore.isAdmin">
+                <router-link to="/" class="nav-link" active-class="active">Crear Nuevo Correo</router-link>
               </li>
               <li class="nav-item">
-                <router-link to="/lista-correos" class="nav-link">Ver Correos Guardados</router-link>
+                <router-link to="/lista-correos" class="nav-link" active-class="active">Ver Correos Guardados</router-link>
               </li>
               <li class="nav-item" v-if="authStore.isAdmin">
-                <router-link to="/gestionar-templates" class="nav-link">Gestionar Templates</router-link>
+                <router-link to="/gestionar-templates" class="nav-link" active-class="active">Gestionar Templates</router-link>
               </li>
             </template>
           </ul>
           <ul class="navbar-nav ms-auto">
             <li class="nav-item" v-if="!authStore.isAuthenticated">
-              <router-link to="/login" class="nav-link">Iniciar Sesión</router-link>
+              <router-link to="/login" class="nav-link" active-class="active">Iniciar Sesión</router-link>
             </li>
             <li class="nav-item" v-if="!authStore.isAuthenticated">
-              <router-link to="/register" class="nav-link">Registro</router-link>
+              <router-link to="/register" class="nav-link" active-class="active">Registro</router-link>
             </li>
             <li class="nav-item" v-if="authStore.isAuthenticated">
               <span class="nav-link text-white">Hola, {{ authStore.user?.username }}!</span>
@@ -42,44 +42,18 @@ const authStore = useAuthStore(); // <-- Instancia el store
         </div>
       </div>
     </nav>
-    <main class="container mt-4">
+    <main class="container-xxxl py-4">
       <router-view />
     </main>
   </div>
 </template>
 
 <style scoped>
-header {
-  line-height: 1.5;
-}
-
-.logo {
-  display: block;
-  margin: 0 auto 2rem;
-}
-
-.main-nav {
-  display: flex;
-  justify-content: center;
-  padding: 15px;
-  background-color: #333;
-  gap: 20px;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-  margin-bottom: 20px;
-}
-.nav-link {
-  color: white;
-  text-decoration: none;
+.router-link-active,
+.router-link-exact-active {
   font-weight: bold;
-  padding: 8px 15px;
+  color: white !important;
+  background-color: rgba(255, 255, 255, 0.1);
   border-radius: 5px;
-  transition: background-color 0.2s ease;
 }
-.nav-link:hover {
-  background-color: #555;
-}
-.nav-link.router-link-active {
-  background-color: #007bff;
-}
-
 </style>

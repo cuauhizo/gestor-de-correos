@@ -1,38 +1,90 @@
 // frontend/src/router/index.js
+// Archivo de configuración principal de Vue Router.
+// Define las rutas de la aplicación y las guardias de navegación para la autenticación y autorización.
+
 import { createRouter, createWebHistory } from 'vue-router';
-import { useAuthStore } from '../stores/auth.js';
-import HomeView from '../views/HomeView.vue'; // Una vista inicial
+import { useAuthStore } from '../stores/auth.js'; // Importa el store de autenticación de Pinia
+
+// Importa todas las vistas (páginas) de la aplicación
+import HomeView from '../views/HomeView.vue';
 import EmailEditor from '../views/EmailEditor.vue';
-import EmailList from '../views/EmailList.vue'; // Una vista inicial
+import EmailList from '../views/EmailList.vue';
 import TemplateManager from '../views/TemplateManager.vue';
-import LoginView from '../views/LoginView.vue'; // <-- Importa la vista de login
-import RegisterView from '../views/RegisterView.vue'; // <-- Importa la vista de registro
-import NotFound from '../views/NotFound.vue'; // <-- Importa la vista de registro
+import LoginView from '../views/LoginView.vue';
+import RegisterView from '../views/RegisterView.vue';
+import NotFound from '../views/NotFound.vue'; // Vista para manejar rutas no encontradas (404)
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
   routes: [
-    { path: '/', name: 'home', component: HomeView, meta: { requiresAuth: true } },
-    { path: '/editar-correo/:uuid', name: 'email-editor', component: EmailEditor, props: true, meta: { requiresAuth: true } },
-    { path: '/lista-correos', name: 'email-list', component: EmailList, meta: { requiresAuth: true } },
-    { path: '/gestionar-templates', name: 'template-manager', component: TemplateManager, meta: { requiresAuth: true, requiresAdmin: true } },
-    { path: '/login', name: 'login', component: LoginView },
-    { path: '/register', name: 'register', component: RegisterView },
-    { path: '/:pathMatch(.*)*', name: 'NotFound', component: NotFound},
+    // --- Rutas Protegidas ---
+    // Estas rutas requieren que el usuario esté autenticado para ser accesibles.
+    {
+      path: '/',
+      name: 'home',
+      component: HomeView,
+      meta: { requiresAuth: true, requiresAdmin: true } // Solo admin puede ver la página de creación de correos
+    },
+    {
+      path: '/editar-correo/:uuid',
+      name: 'email-editor',
+      component: EmailEditor,
+      props: true,
+      meta: { requiresAuth: true } // Cualquier usuario autenticado puede editar un correo
+    },
+    {
+      path: '/lista-correos',
+      name: 'email-list',
+      component: EmailList,
+      meta: { requiresAuth: true } // Cualquier usuario autenticado puede ver la lista
+    },
+    {
+      path: '/gestionar-templates',
+      name: 'template-manager',
+      component: TemplateManager,
+      meta: { requiresAuth: true, requiresAdmin: true } // Solo el admin puede gestionar templates
+    },
+
+    // --- Rutas Públicas ---
+    // Estas rutas no requieren autenticación
+    {
+      path: '/login',
+      name: 'login',
+      component: LoginView
+    },
+    {
+      path: '/register',
+      name: 'register',
+      component: RegisterView
+    },
+
+    // --- Ruta 'Catch-all' para errores 404 ---
+    // Esta ruta debe ser la última en la lista para que actúe como fallback
+    {
+      path: '/:pathMatch(.*)*',
+      name: 'NotFound',
+      component: NotFound
+    },
   ],
 });
 
-// --- Navegación Global Guard para proteger rutas ---
+// --- Guardia de Navegación Global ---
+// Se ejecuta antes de cada cambio de ruta para verificar los permisos del usuario
 router.beforeEach((to, from, next) => {
   const authStore = useAuthStore();
+
+  // 1. Si la ruta requiere autenticación y el usuario no está logueado, redirige al login.
   if (to.meta.requiresAuth && !authStore.isAuthenticated) {
-    next({ name: 'login' });
-  } else if (to.meta.requiresAdmin && !authStore.isAdmin) {
-    // Redirigir a la página de inicio si no es admin
-    next({ name: 'home' });
-  } else {
-    next();
+    return next({ name: 'login' });
   }
+
+  // 2. Si la ruta requiere rol de admin y el usuario no lo tiene, redirige al home.
+  else if (to.meta.requiresAdmin && !authStore.isAdmin) {
+    return next({ name: 'home' });
+  }
+
+  // 3. Si las condiciones se cumplen o la ruta es pública, permite la navegación.
+  next();
 });
 
 export default router;
