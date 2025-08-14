@@ -10,8 +10,10 @@
 
       <ul class="list-group">
         <li v-for="email in emails" :key="email.uuid" class="list-group-item d-flex justify-content-between align-items-center">
+          <!-- <pre>{{ email }}</pre> -->
           <div class="flex-grow-1">
-            <strong>UUID:</strong> {{ email.uuid }}<br>
+            <!-- <strong>UUID:</strong> {{ email.uuid }}<br> -->
+            <strong>Nombre template:</strong> {{ email.template_name }}<br>
             <strong>Creado por:</strong> {{ email.creator_username || 'Usuario desconocido' }}<br>
             <strong>Última modificación por:</strong> {{ email.last_modifier_username || 'Usuario desconocido' }}<br>
             <strong>Última Actualización:</strong> {{ formatDate(email.updated_at) }}

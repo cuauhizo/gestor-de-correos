@@ -63,17 +63,17 @@
 </template>
 
 <script setup>
-import { ref, onMounted, nextTick, onBeforeUnmount  } from 'vue'; // <-- Importa nextTick aquí
+import { ref, onMounted, nextTick, onBeforeUnmount  } from 'vue';
 import axios from '../services/api.js';
 import { useRoute, useRouter } from 'vue-router';
 import TiptapEditor from '../components/TiptapEditor.vue';
-import { capitalizeFirstLetter, isValidUrl, getPlainTextFromHtml } from '../utils/helpers.js'; // <-- Asegúrate de estas importaciones
-import { useFeedback } from '../composables/useFeedback.js'; // <-- Asegúrate de esta importación
+import { capitalizeFirstLetter, isValidUrl, getPlainTextFromHtml } from '../utils/helpers.js';
+import { useFeedback } from '../composables/useFeedback.js';
 import { useAuthStore } from '../stores/auth.js';
 
 
-const router = useRouter(); // Instancia el router
-const authStore = useAuthStore(); // Instancia el store de autenticación
+const router = useRouter();
+const authStore = useAuthStore();
 const isLocked = ref(false);
 const lockedByUsername = ref(null);
 
@@ -89,9 +89,10 @@ const previewIframe = ref(null);
 const isSaving = ref(false);
 const previewWidth = ref('772px');
 
-const { feedbackMessage, feedbackType, showFeedback } = useFeedback(); // <-- Usa el composable de feedback aquí
+const { feedbackMessage, feedbackType, showFeedback } = useFeedback();
 
 const updatePreview = () => {
+  // ... (Esta función se queda exactamente igual, no es necesario cambiarla)
   if (!previewIframe.value) {
     console.warn('previewIframe ref es null. No se puede actualizar la previsualización.');
     return;
@@ -124,7 +125,7 @@ const updatePreview = () => {
       <style>
         body { font-family: Helvetica, Arial, sans-serif; margin: 0; padding: 0; background-color: #f6f6f6; }
         h1, h2, h3, h4, h5, h6 { margin-top: 0; margin-bottom: 8px; }
-        p { margin-top: 0; margin-bottom: 1em; }
+        p { margin: 0; }
         a { color: #007bff; text-decoration: underline; }
         .email-wrapper {
           max-width: 772px;
@@ -158,58 +159,9 @@ const updatePreview = () => {
   previewIframe.value.contentWindow.document.close();
 };
 
-// onMounted(async () => {
-//   console.log('EmailEditor mounted. UUID:', uuid.value);
 
-//   if (!uuid.value) {
-//     error.value = 'UUID de correo no proporcionado.';
-//     loading.value = false;
-//     return;
-//   }
-
-//   try {
-//     console.log('Fetching email editable data for UUID:', uuid.value);
-//     const emailResponse = await axios.get(`${import.meta.env.VITE_API_URL}/api/emails-editable/${uuid.value}`);
-//     const { template_id, content_json, is_locked, locked_by_user_id } = emailResponse.data;
-    
-//     // Asignar el estado de bloqueo
-//     isLocked.value = is_locked;
-//     if (is_locked && locked_by_user_id) {
-//         // En un caso real, obtendrías el nombre del usuario del backend.
-//         // Para este ejemplo, solo verificamos si el bloqueo no es del usuario actual.
-//         if (locked_by_user_id !== authStore.user.id) {
-//             lockedByUsername.value = 'otro usuario';
-//         }
-//     }
-
-//     console.log('Fetching template HTML for ID:', template_id);
-//     const templateResponse = await axios.get(`${import.meta.env.VITE_API_URL}/api/templates/${template_id}`);
-//     templateHtml.value = templateResponse.data.html_content;
-
-//     editableContent.value = content_json;
-    
-//     nextTick(() => {
-//       updatePreview();
-//     });
-
-//   } catch (err) {
-//     console.error('Error al cargar datos del correo o template:', err);
-//     if (err.response && err.response.status === 404) {
-//         error.value = 'Correo o template no encontrado. Verifica la URL.';
-//     } else {
-//         error.value = `Error al cargar. Asegúrate de que el backend está funcionando: ${err.message}`;
-//     }
-//   } finally {
-//     loading.value = false;
-//     nextTick(() => {
-//       updatePreview();
-//     });
-//   }
-// });
-
+// ⏬ ¡AQUÍ ESTÁ EL CAMBIO PRINCIPAL! ⏬
 onMounted(async () => {
-  // console.log('EmailEditor mounted. UUID:', uuid.value);
-
   if (!uuid.value) {
     error.value = 'UUID de correo no proporcionado.';
     loading.value = false;
@@ -217,49 +169,34 @@ onMounted(async () => {
   }
 
   try {
-        const emailResponse = await axios.get(`${import.meta.env.VITE_API_URL}/api/emails-editable/${uuid.value}`);
-        const { template_id, content_json, is_locked, locked_by_user_id } = emailResponse.data;
-        
-        // Verifica si el correo está bloqueado y si el usuario actual es el que tiene el bloqueo
-        if (is_locked && locked_by_user_id === authStore.user.id) {
-            isLocked.value = true;
-        } else if (is_locked && locked_by_user_id !== authStore.user.id) {
-            isLocked.value = false;
-            // Tendrías que hacer una llamada extra para obtener el nombre de usuario
-            // del que tiene el bloqueo, o hacer que el backend lo devuelva.
-            // Por ahora, 'otro usuario' es suficiente.
-            lockedByUsername.value = 'otro usuario';
-        } else {
-            // Si el correo no está bloqueado, lo bloqueamos ahora
-            await acquireLock();
-        }
+    // 1. PRIMERO, intentamos bloquear el correo. La función mostrará el mensaje que quieres.
+    await acquireLock();
 
-        const templateResponse = await axios.get(`${import.meta.env.VITE_API_URL}/api/templates/${template_id}`);
-        templateHtml.value = templateResponse.data.html_content;
-        editableContent.value = content_json;
+    // 2. SI EL BLOQUEO FUE EXITOSO, cargamos el resto de los datos.
+    const emailResponse = await axios.get(`${import.meta.env.VITE_API_URL}/api/emails-editable/${uuid.value}`);
+    const { template_id, content_json } = emailResponse.data;
 
-        nextTick(() => {
-            updatePreview();
-        });
+    const templateResponse = await axios.get(`${import.meta.env.VITE_API_URL}/api/templates/${template_id}`);
+    templateHtml.value = templateResponse.data.html_content;
+    editableContent.value = content_json;
+
+    nextTick(() => {
+      updatePreview();
+    });
 
   } catch (err) {
-    console.error('Error al cargar datos del correo o template:', err);
-    if (err.response && err.response.status === 404) {
-        error.value = 'Correo o template no encontrado. Verifica la URL.';
-    } else {
-        error.value = `Error al cargar. Asegúrate de que el backend está funcionando: ${err.message}`;
+    // Si el error es 409 (conflicto), ya fue manejado por acquireLock, así que no lo mostramos de nuevo.
+    if (err.response?.status !== 409) {
+      console.error('Error al cargar datos del correo o template:', err);
+      error.value = `Error al cargar. Asegúrate de que el backend está funcionando: ${err.message}`;
     }
   } finally {
-    // Aquí es donde `loading.value` se establece en `false`
-    // y la vista comienza a renderizarse.
     loading.value = false;
     nextTick(() => {
       updatePreview();
     });
   }
 });
-
-// Liberar el bloqueo cuando el usuario se va del editor
 
 onBeforeUnmount(async () => {
     if (isLocked.value) {
@@ -325,7 +262,7 @@ const copyHtmlToClipboard = () => {
     finalHtml = finalHtml.replace(placeholder, replacement);
   }
 
-  const textToCopy = finalHtml; 
+  const textToCopy = finalHtml;
 
   navigator.clipboard.writeText(textToCopy)
     .then(() => {
@@ -337,32 +274,37 @@ const copyHtmlToClipboard = () => {
     });
 };
 
-// NUEVA FUNCIÓN: Adquirir el bloqueo
+// Adquirir el bloqueo
 const acquireLock = async () => {
     try {
         await axios.post(`${import.meta.env.VITE_API_URL}/api/emails-editable/${uuid.value}/lock`);
         isLocked.value = true;
+        // ¡ESTA LÍNEA ES LA QUE MUESTRA EL MENSAJE QUE QUIERES VER!
         showFeedback('Correo bloqueado para edición.', 'success');
     } catch (err) {
         if (err.response?.status === 409) { // 409 Conflict
             isLocked.value = false;
             lockedByUsername.value = err.response.data.message.split('por ')[1].split('.')[0];
             showFeedback(`Este correo está siendo editado por ${lockedByUsername.value}.`, 'error');
+            // Redirigimos al usuario si no puede editar
+            router.push('/lista-correos');
         } else {
             error.value = 'Error al adquirir el bloqueo. No se puede editar.';
             showFeedback('Error al adquirir el bloqueo.', 'error');
         }
+        // Lanzamos el error para que el `onMounted` detenga su ejecución
+        throw err;
     }
 };
 
-// NUEVA FUNCIÓN: Liberar el bloqueo
+// Liberar el bloqueo
 const releaseLock = async () => {
     try {
         await axios.post(`${import.meta.env.VITE_API_URL}/api/emails-editable/${uuid.value}/unlock`);
         isLocked.value = false;
-        showFeedback('Correo desbloqueado.', 'success');
+        // No es necesario notificar al usuario, es una acción en segundo plano
+        console.log('Correo desbloqueado.');
     } catch (err) {
-        // Si el desbloqueo falla, el servidor lo gestionará, pero es bueno manejarlo
         console.error('Error al liberar el bloqueo:', err);
     }
 };
@@ -371,44 +313,9 @@ const releaseLock = async () => {
 
 <style scoped>
 
-/* Estilos para el feedback visual */
-.feedback-message {
-    position: fixed;
-    top: 20px;
-    right: 20px;
-    padding: 15px 25px;
-    border-radius: 8px;
-    color: white;
-    font-weight: bold;
-    z-index: 1000;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
-    opacity: 0;
-    transform: translateY(-20px);
-    animation: fade-in-up 0.3s forwards;
-}
-
-.feedback-message.success {
-    background-color: #28a745;
-}
-
-.feedback-message.error {
-    background-color: #dc3545;
-}
-
-.validation-error {
-  color: #dc3545; /* Rojo */
-  font-size: 0.85em;
-  margin-top: 5px;
-}
-
-@keyframes fade-in-up {
-    from {
-        opacity: 0;
-        transform: translateY(-20px);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
+.scroll{
+  max-height: 2100px; /* Ajusta según sea necesario */
+  overflow-y: auto;
+  padding-right: 10px; /* Espacio para la barra de desplazamiento */
 }
 </style>
