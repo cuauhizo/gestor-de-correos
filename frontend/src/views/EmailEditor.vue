@@ -50,7 +50,7 @@
           <div class="col-md-8">
             <div class="card p-3 h-100">
               <h3 class="card-title text-center mb-3">Previsualización del Correo</h3>
-                <iframe ref="previewIframe" :style="{ width: previewWidth, height: '2100px' }" class="w-100 border rounded shadow-sm"></iframe>
+              <iframe ref="previewIframe" :style="{ width: previewWidth, height: '2100px' }" class="w-100 border rounded shadow-sm"></iframe>
             </div>
           </div>
         </div>
@@ -63,12 +63,19 @@
 </template>
 
 <script setup>
-import { ref, onMounted, nextTick } from 'vue'; // <-- Importa nextTick aquí
-import axios from 'axios';
-import { useRoute } from 'vue-router';
+import { ref, onMounted, nextTick, onBeforeUnmount  } from 'vue'; // <-- Importa nextTick aquí
+import axios from '../services/api.js';
+import { useRoute, useRouter } from 'vue-router';
 import TiptapEditor from '../components/TiptapEditor.vue';
 import { capitalizeFirstLetter, isValidUrl, getPlainTextFromHtml } from '../utils/helpers.js'; // <-- Asegúrate de estas importaciones
 import { useFeedback } from '../composables/useFeedback.js'; // <-- Asegúrate de esta importación
+import { useAuthStore } from '../stores/auth.js';
+
+
+const router = useRouter(); // Instancia el router
+const authStore = useAuthStore(); // Instancia el store de autenticación
+const isLocked = ref(false);
+const lockedByUsername = ref(null);
 
 const validationErrors = ref({});
 const route = useRoute();
@@ -151,6 +158,55 @@ const updatePreview = () => {
   previewIframe.value.contentWindow.document.close();
 };
 
+// onMounted(async () => {
+//   console.log('EmailEditor mounted. UUID:', uuid.value);
+
+//   if (!uuid.value) {
+//     error.value = 'UUID de correo no proporcionado.';
+//     loading.value = false;
+//     return;
+//   }
+
+//   try {
+//     console.log('Fetching email editable data for UUID:', uuid.value);
+//     const emailResponse = await axios.get(`${import.meta.env.VITE_API_URL}/api/emails-editable/${uuid.value}`);
+//     const { template_id, content_json, is_locked, locked_by_user_id } = emailResponse.data;
+    
+//     // Asignar el estado de bloqueo
+//     isLocked.value = is_locked;
+//     if (is_locked && locked_by_user_id) {
+//         // En un caso real, obtendrías el nombre del usuario del backend.
+//         // Para este ejemplo, solo verificamos si el bloqueo no es del usuario actual.
+//         if (locked_by_user_id !== authStore.user.id) {
+//             lockedByUsername.value = 'otro usuario';
+//         }
+//     }
+
+//     console.log('Fetching template HTML for ID:', template_id);
+//     const templateResponse = await axios.get(`${import.meta.env.VITE_API_URL}/api/templates/${template_id}`);
+//     templateHtml.value = templateResponse.data.html_content;
+
+//     editableContent.value = content_json;
+    
+//     nextTick(() => {
+//       updatePreview();
+//     });
+
+//   } catch (err) {
+//     console.error('Error al cargar datos del correo o template:', err);
+//     if (err.response && err.response.status === 404) {
+//         error.value = 'Correo o template no encontrado. Verifica la URL.';
+//     } else {
+//         error.value = `Error al cargar. Asegúrate de que el backend está funcionando: ${err.message}`;
+//     }
+//   } finally {
+//     loading.value = false;
+//     nextTick(() => {
+//       updatePreview();
+//     });
+//   }
+// });
+
 onMounted(async () => {
   // console.log('EmailEditor mounted. UUID:', uuid.value);
 
@@ -161,20 +217,31 @@ onMounted(async () => {
   }
 
   try {
-    // console.log('Fetching email editable data for UUID:', uuid.value);
-    const emailResponse = await axios.get(`${import.meta.env.VITE_API_URL}/api/emails-editable/${uuid.value}`);
-    const { template_id, content_json } = emailResponse.data;
-    // console.log('Email editable data received:', emailResponse.data);
+        const emailResponse = await axios.get(`${import.meta.env.VITE_API_URL}/api/emails-editable/${uuid.value}`);
+        const { template_id, content_json, is_locked, locked_by_user_id } = emailResponse.data;
+        
+        // Verifica si el correo está bloqueado y si el usuario actual es el que tiene el bloqueo
+        if (is_locked && locked_by_user_id === authStore.user.id) {
+            isLocked.value = true;
+        } else if (is_locked && locked_by_user_id !== authStore.user.id) {
+            isLocked.value = false;
+            // Tendrías que hacer una llamada extra para obtener el nombre de usuario
+            // del que tiene el bloqueo, o hacer que el backend lo devuelva.
+            // Por ahora, 'otro usuario' es suficiente.
+            lockedByUsername.value = 'otro usuario';
+        } else {
+            // Si el correo no está bloqueado, lo bloqueamos ahora
+            await acquireLock();
+        }
 
-    // console.log('Fetching template HTML for ID:', template_id);
-    const templateResponse = await axios.get(`${import.meta.env.VITE_API_URL}/api/templates/${template_id}`);
-    templateHtml.value = templateResponse.data.html_content;
-    // console.log('Template HTML received (first 200 chars):', templateHtml.value.substring(0, 200) + '...');
+        const templateResponse = await axios.get(`${import.meta.env.VITE_API_URL}/api/templates/${template_id}`);
+        templateHtml.value = templateResponse.data.html_content;
+        editableContent.value = content_json;
 
-    editableContent.value = content_json;
-    
-    // Aquí, la variable `loading` aún es `true`.
-    // La vista con el iframe no se ha renderizado.
+        nextTick(() => {
+            updatePreview();
+        });
+
   } catch (err) {
     console.error('Error al cargar datos del correo o template:', err);
     if (err.response && err.response.status === 404) {
@@ -186,15 +253,26 @@ onMounted(async () => {
     // Aquí es donde `loading.value` se establece en `false`
     // y la vista comienza a renderizarse.
     loading.value = false;
-    
-    // Usa nextTick para esperar a que el DOM se actualice antes de llamar a updatePreview
     nextTick(() => {
       updatePreview();
     });
   }
 });
 
+// Liberar el bloqueo cuando el usuario se va del editor
+
+onBeforeUnmount(async () => {
+    if (isLocked.value) {
+        await releaseLock();
+    }
+});
+
 const saveChanges = async () => {
+  if (!isLocked.value) {
+        showFeedback('No tienes permiso para guardar. El correo no está bloqueado por ti.', 'error');
+        return;
+    }
+
   validationErrors.value = {};
   let hasValidationErrors = false;
   for (const key in editableContent.value) {
@@ -259,15 +337,39 @@ const copyHtmlToClipboard = () => {
     });
 };
 
+// NUEVA FUNCIÓN: Adquirir el bloqueo
+const acquireLock = async () => {
+    try {
+        await axios.post(`${import.meta.env.VITE_API_URL}/api/emails-editable/${uuid.value}/lock`);
+        isLocked.value = true;
+        showFeedback('Correo bloqueado para edición.', 'success');
+    } catch (err) {
+        if (err.response?.status === 409) { // 409 Conflict
+            isLocked.value = false;
+            lockedByUsername.value = err.response.data.message.split('por ')[1].split('.')[0];
+            showFeedback(`Este correo está siendo editado por ${lockedByUsername.value}.`, 'error');
+        } else {
+            error.value = 'Error al adquirir el bloqueo. No se puede editar.';
+            showFeedback('Error al adquirir el bloqueo.', 'error');
+        }
+    }
+};
+
+// NUEVA FUNCIÓN: Liberar el bloqueo
+const releaseLock = async () => {
+    try {
+        await axios.post(`${import.meta.env.VITE_API_URL}/api/emails-editable/${uuid.value}/unlock`);
+        isLocked.value = false;
+        showFeedback('Correo desbloqueado.', 'success');
+    } catch (err) {
+        // Si el desbloqueo falla, el servidor lo gestionará, pero es bueno manejarlo
+        console.error('Error al liberar el bloqueo:', err);
+    }
+};
+
 </script>
 
 <style scoped>
-
-.scroll{
-  max-height: 2100px; /* Ajusta según sea necesario */
-  overflow-y: auto;
-  padding-right: 10px; /* Espacio para la barra de desplazamiento */
-}
 
 /* Estilos para el feedback visual */
 .feedback-message {

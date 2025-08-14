@@ -1,5 +1,5 @@
 <template>
-  <div class="card p-4 mt-5 mx-auto" style="max-width: 800px;">
+  <div class="container py-4" style="max-width: 900px;">
     <h1 class="card-title text-center mb-4">Gestionar Templates de Correo</h1>
 
     <div v-if="formFeedbackMessage" :class="['form-feedback-message', formFeedbackType]">
@@ -52,7 +52,7 @@
       <div v-if="templatesError" class="text-center text-danger">{{ templatesError }}</div>
 
       <p v-if="!loadingTemplates && !templatesError && templates.length === 0" class="text-center">No hay templates guardados aún.</p>
-      
+
       <ul class="list-group">
         <li v-for="template in templates" :key="template.id" class="list-group-item d-flex justify-content-between align-items-center">
           <div>
@@ -71,24 +71,20 @@
 
 <script setup>
 import { ref, onMounted } from 'vue';
-import axios from 'axios';
-import { formatDate } from '../utils/helpers.js';
+import axios from '../services/api.js';
 import { useFeedback } from '../composables/useFeedback.js';
 
 const templates = ref([]);
 const loadingTemplates = ref(true);
 const templatesError = ref(null);
 
-const currentTemplate = ref({ // Para el formulario de añadir/editar
+const currentTemplate = ref({
   name: '',
   html_content: ''
 });
-const editingTemplateId = ref(null); // Guarda el ID del template que se está editando
+const editingTemplateId = ref(null);
 const isSaving = ref(false);
-const formErrors = ref({}); // Para errores de validación específicos de campos
-
-
-// Nuevo ref para la sección del formulario (para el scroll)
+const formErrors = ref({});
 const templateFormSection = ref(null);
 
 // Usa el composable de feedback
@@ -112,10 +108,9 @@ const fetchTemplates = async () => {
 };
 
 // Función para guardar (añadir o actualizar) un template
-// Modificar la función saveTemplate para usar el nuevo feedback
 const saveTemplate = async () => {
   isSaving.value = true;
-  formErrors.value = {}; // Resetear errores de validación
+  formErrors.value = {};
 
   try {
     let response;
@@ -124,8 +119,8 @@ const saveTemplate = async () => {
     } else {
       response = await axios.post(`${import.meta.env.VITE_API_URL}/api/templates`, currentTemplate.value);
     }
-    
-    showFormFeedback(response.data.message, 'success'); // Usar el nuevo feedback
+
+    showFormFeedback(response.data.message, 'success');
     currentTemplate.value = { name: '', html_content: '' };
     editingTemplateId.value = null;
     fetchTemplates();
@@ -135,9 +130,9 @@ const saveTemplate = async () => {
       err.response.data.errors.forEach(error => {
         formErrors.value[error.path] = error.msg;
       });
-      showFormFeedback('Por favor, corrige los errores en el formulario.', 'error'); // Usar el nuevo feedback
+      showFormFeedback('Por favor, corrige los errores en el formulario.', 'error');
     } else {
-      showFormFeedback(err.response?.data?.message || 'Error al guardar template. Revisa la consola.', 'error'); // Usar el nuevo feedback
+      showFormFeedback(err.response?.data?.message || 'Error al guardar template. Revisa la consola.', 'error');
     }
   } finally {
     isSaving.value = false;
@@ -145,15 +140,12 @@ const saveTemplate = async () => {
 };
 
 // Función para iniciar la edición de un template
-// Modificar la función editTemplate para hacer scroll
 const editTemplate = async (id) => {
   formErrors.value = {};
 
   try {
     const response = await axios.get(`${import.meta.env.VITE_API_URL}/api/templates/${id}`);
-    currentTemplate.value.name = templates.value.find(t => t.id === id).name; // Obtener nombre de la lista ya cargada
-    // Asegúrate de usar .value para los refs en Vue 3 Script Setup
-    // currentTemplate.value.name = response.data.name; // Obtener nombre directamente de la respuesta si quieres
+    currentTemplate.value.name = templates.value.find(t => t.id === id).name;
     currentTemplate.value.html_content = response.data.html_content;
     editingTemplateId.value = id;
 
@@ -163,33 +155,31 @@ const editTemplate = async (id) => {
     }
   } catch (err) {
     console.error('Error al cargar template para edición:', err);
-    showFormFeedback('Error al cargar template para edición. Revisa la consola.', 'error'); // Usar el nuevo feedback
+    showFormFeedback('Error al cargar template para edición. Revisa la consola.', 'error');
   }
 };
 
 // Función para cancelar la edición
-// Modificar la función cancelEdit para limpiar feedback
 const cancelEdit = () => {
   currentTemplate.value = { name: '', html_content: '' };
   editingTemplateId.value = null;
-  formFeedbackMessage.value = null; // Limpiar feedback al cancelar
+  formFeedbackMessage.value = null;
   formFeedbackType.value = '';
   formErrors.value = {};
 };
 
 // Función para eliminar un template
-// Modificar la función deleteTemplate para usar el nuevo feedback
 const deleteTemplate = async (idToDelete) => {
   if (!confirm('¿Estás seguro de que quieres eliminar este template? Esta acción no se puede deshacer.')) {
     return;
   }
   try {
     await axios.delete(`${import.meta.env.VITE_API_URL}/api/templates/${idToDelete}`);
-    showFormFeedback('Template eliminado exitosamente.', 'success'); // Usar el nuevo feedback
+    showFormFeedback('Template eliminado exitosamente.', 'success');
     fetchTemplates();
   } catch (err) {
     console.error('Error al eliminar template:', err);
-    showFormFeedback(err.response?.data?.message || 'Error al eliminar template. Revisa la consola.', 'error'); // Usar el nuevo feedback
+    showFormFeedback(err.response?.data?.message || 'Error al eliminar template. Revisa la consola.', 'error');
   }
 };
 
@@ -197,52 +187,4 @@ onMounted(fetchTemplates);
 </script>
 
 <style scoped>
-/* Estilos para el feedback del formulario (similar al global, pero ajustado a la posición) */
-.form-feedback-message {
-    position: fixed;
-    top: 20px;
-    right: 20px;
-    padding: 15px 25px;
-    border-radius: 8px;
-    color: white;
-    font-weight: bold;
-    z-index: 999;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
-    opacity: 0;
-    transform: translateY(-20px);
-    animation: fade-in-up 0.3s forwards;
-    /* ============= */
-    /* position: fixed;
-    top: 20px;
-    right: 20px;
-    padding: 15px 25px;
-    border-radius: 8px;
-    color: white;
-    font-weight: bold;
-    z-index: 1000;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
-    opacity: 0;
-    transform: translateY(-20px);
-    animation: fade-in-up 0.3s forwards; */
-}
-
-.form-feedback-message.success {
-    background-color: #28a745;
-}
-
-.form-feedback-message.error {
-    background-color: #dc3545;
-}
-
-
-@keyframes fade-in-up {
-    from {
-        opacity: 0;
-        transform: translateY(-20px);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
-}
 </style>
