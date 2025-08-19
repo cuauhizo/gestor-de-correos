@@ -84,7 +84,12 @@ const deleteEmail = async (uuidToDelete) => {
     showFeedback('Correo eliminado exitosamente.', 'success');
   } catch (err) {
     console.error('Error al eliminar correo:', err);
-    showFeedback('Error al eliminar correo. Revisa la consola.', 'error');
+    // NUEVO: Manejo específico para el error de conflicto
+    if (err.response?.status === 409) {
+      showFeedback(err.response.data.message, 'error');
+    } else {
+      showFeedback('Error al eliminar el correo. Intenta de nuevo.', 'error');
+    }
   }
 };
 

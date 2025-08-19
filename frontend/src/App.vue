@@ -3,49 +3,79 @@ import { onMounted, onBeforeUnmount, ref } from 'vue';
 import { useAuthStore } from './stores/auth.js';
 import { useRouter } from 'vue-router';
 import { useFeedback } from './composables/useFeedback.js';
+import SessionWarningModal from './components/SessionWarningModal.vue'; // 1. Importa el nuevo componente
 
 const authStore = useAuthStore();
 const router = useRouter();
 const { feedbackMessage, feedbackType, showFeedback } = useFeedback();
 
-// Temporizador para manejar la inactividad del usuario
-let timeout;
-const INACTIVITY_TIME = 1000 * 60 * 15; // 15 minutos en milisegundos
-// const INACTIVITY_TIME = 3000; // 15 minutos en milisegundos
+// --- Lógica de Inactividad ---
+const showWarningModal = ref(false); // 2. Estado para controlar la visibilidad del modal
 
-// Función para reiniciar el temporizador de inactividad
-const resetTimer = () => {
-  clearTimeout(timeout);
-  console.log(timeout);
-  if (authStore.isAuthenticated) {
-    timeout = setTimeout(logoutDueToInactivity, INACTIVITY_TIME);
-  }
-};
+let inactivityTimer;
+let warningTimer;
+const INACTIVITY_TIME = 1000 * 60 * 30; // 30 minutos en milisegundos
+const WARNING_TIME = 1000 * 60; // 1 minuto (60,000 ms) para la advertencia
 
-// Función para manejar el cierre de sesión por inactividad
+// Función que se ejecuta cuando el tiempo de inactividad se cumple
 const logoutDueToInactivity = () => {
   console.log('Sesión cerrada por inactividad.');
   authStore.logout();
   router.push({ name: 'login' });
-  showFeedback('Su sesión se cerró por inactividad. Por favor, inicie sesión de nuevo.', 'error');
+  showFeedback('Tu sesión se cerró por inactividad. Por favor, inicia sesión de nuevo.', 'error');
+};
+
+// Función para mostrar el modal de advertencia
+const showInactivityWarning = () => {
+  console.log('Mostrando advertencia de inactividad.');
+  showWarningModal.value = true;
+  // Inicia el temporizador final para cerrar la sesión si no hay respuesta
+  inactivityTimer = setTimeout(logoutDueToInactivity, WARNING_TIME);
+};
+
+// 3. Función para reiniciar TODOS los temporizadores
+const resetTimers = () => {
+  // Limpia los temporizadores anteriores
+  clearTimeout(warningTimer);
+  clearTimeout(inactivityTimer);
+
+  // Si el usuario está autenticado, reinicia el ciclo
+  if (authStore.isAuthenticated) {
+    // El temporizador de advertencia se activará 1 minuto antes del cierre de sesión
+    warningTimer = setTimeout(showInactivityWarning, INACTIVITY_TIME - WARNING_TIME);
+  }
+};
+
+// 4. Función para manejar la extensión de la sesión desde el modal
+const handleExtendSession = () => {
+  console.log('El usuario eligió extender la sesión.');
+  showWarningModal.value = false; // Oculta el modal
+  resetTimers(); // Reinicia todo el ciclo de temporizadores
+};
+
+// 5. Función para manejar el cierre de sesión desde el modal
+const handleLogout = () => {
+  showWarningModal.value = false;
+  logoutDueToInactivity();
 };
 
 // Configurar los listeners de eventos para detectar actividad del usuario
 onMounted(() => {
-  window.addEventListener('mousemove', resetTimer);
-  window.addEventListener('keypress', resetTimer);
-  window.addEventListener('click', resetTimer);
-  window.addEventListener('scroll', resetTimer);
-  resetTimer(); // Iniciar el temporizador al cargar la aplicación
+  window.addEventListener('mousemove', resetTimers);
+  window.addEventListener('keypress', resetTimers);
+  window.addEventListener('click', resetTimers);
+  window.addEventListener('scroll', resetTimers);
+  resetTimers(); // Iniciar el ciclo de temporizadores al cargar la aplicación
 });
 
-// Limpiar los listeners antes de desmontar el componente para evitar fugas de memoria
+// Limpiar los listeners antes de desmontar el componente
 onBeforeUnmount(() => {
-  clearTimeout(timeout);
-  window.removeEventListener('mousemove', resetTimer);
-  window.removeEventListener('keypress', resetTimer);
-  window.removeEventListener('click', resetTimer);
-  window.removeEventListener('scroll', resetTimer);
+  clearTimeout(warningTimer);
+  clearTimeout(inactivityTimer);
+  window.removeEventListener('mousemove', resetTimers);
+  window.removeEventListener('keypress', resetTimers);
+  window.removeEventListener('click', resetTimers);
+  window.removeEventListener('scroll', resetTimers);
 });
 </script>
 
@@ -95,6 +125,13 @@ onBeforeUnmount(() => {
       {{ feedbackMessage }}
     </div>
   </div>
+
+  <SessionWarningModal
+    :show="showWarningModal"
+    @close="showWarningModal = false"
+    @extend="handleExtendSession"
+    @logout="handleLogout"
+  />
 </template>
 
 <style scoped>

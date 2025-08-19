@@ -3,6 +3,9 @@
     <div class="row">
       <div class="col-12 text-center mb-4">
         <h1>Editor de Contenido de Correo</h1>
+        <!-- <h2 v-if="templateName" class="h4 text-muted fw-normal">
+          Editando Template: <span class="fw-bold">{{ templateName }}</span>
+        </h2> -->
       </div>
       <div class="col-12">
         <div v-if="loading" class="text-center text-secondary">Cargando correo...</div>
@@ -11,7 +14,10 @@
         <div v-if="!loading && !error" class="row g-4">
           <div class="col-md-4">
             <div class="card p-3 h-100">
-              <h3 class="card-title text-center mb-3">Contenido Editable</h3>
+              <div class="d-flex justify-content-between align-items-center mb-3">
+                <h3 class="card-title text-center mb-0">Contenido Editable</h3>
+                <span :class="['badge', autoSaveStatus.class]">{{ autoSaveStatus.text }}</span>
+              </div>
               <div class="scroll">
                 <div v-for="(value, key) in editableContent" :key="key" class="mb-3">
                   <label :for="key" class="form-label fw-bold">{{ capitalizeFirstLetter(key.replace(/_/g, ' ')) }}:</label>
@@ -19,7 +25,7 @@
                     <input
                       :id="key"
                       v-model="editableContent[key]"
-                      @input="updatePreview"
+                      @input="handleContentChange"
                       type="url"
                       class="form-control"
                       :class="{ 'is-invalid': validationErrors[key] }"
@@ -28,7 +34,7 @@
                   <template v-else>
                     <TiptapEditor
                       :modelValue="editableContent[key]"
-                      @update:modelValue="newValue => { editableContent[key] = newValue; updatePreview(); }"
+                      @update:modelValue="newValue => handleTiptapUpdate(key, newValue)"
                       :class="{ 'is-invalid': validationErrors[key] }"
                     />
                   </template>
@@ -37,7 +43,7 @@
               </div>
               <div class="d-flex flex-wrap justify-content-center gap-2 mt-3">
                 <router-link to="/lista-correos" class="btn btn-danger">Cancelar</router-link>
-                <button @click="saveChanges" :disabled="isSaving" class="btn btn-primary">
+                <button @click="manualSaveChanges" :disabled="isSaving" class="btn btn-primary">
                   {{ isSaving ? 'Guardando...' : 'Guardar Cambios' }}
                 </button>
                 <button @click="copyHtmlToClipboard" class="btn btn-success">
@@ -49,7 +55,7 @@
 
           <div class="col-md-8">
             <div class="card p-3 h-100">
-              <h3 class="card-title text-center mb-3">Previsualización del Correo</h3>
+              <h3 v-if="templateName" class="card-title text-center mb-3">Previsualización del Correo - <span class="fw-bold">{{ templateName }}</span></h3>
               <iframe ref="previewIframe" :style="{ width: previewWidth, height: '2100px' }" class="w-100 border rounded shadow-sm"></iframe>
             </div>
           </div>
@@ -63,104 +69,190 @@
 </template>
 
 <script setup>
-import { ref, onMounted, nextTick, onBeforeUnmount  } from 'vue';
+import { ref, onMounted, nextTick, onBeforeUnmount, reactive, watch } from 'vue';
 import axios from '../services/api.js';
 import { useRoute, useRouter } from 'vue-router';
 import TiptapEditor from '../components/TiptapEditor.vue';
 import { capitalizeFirstLetter, isValidUrl, getPlainTextFromHtml } from '../utils/helpers.js';
 import { useFeedback } from '../composables/useFeedback.js';
-import { useAuthStore } from '../stores/auth.js';
-
 
 const router = useRouter();
-const authStore = useAuthStore();
-const isLocked = ref(false);
-const lockedByUsername = ref(null);
-
-const validationErrors = ref({});
 const route = useRoute();
 const uuid = ref(route.params.uuid);
-
-const templateHtml = ref('');
-const editableContent = ref({});
-const loading = ref(true);
-const error = ref(null);
-const previewIframe = ref(null);
-const isSaving = ref(false);
-const previewWidth = ref('772px');
-
 const { feedbackMessage, feedbackType, showFeedback } = useFeedback();
 
-const updatePreview = () => {
-  // ... (Esta función se queda exactamente igual, no es necesario cambiarla)
-  if (!previewIframe.value) {
-    console.warn('previewIframe ref es null. No se puede actualizar la previsualización.');
+// --- Estados del componente ---
+const loading = ref(true);
+const error = ref(null);
+const templateHtml = ref('');
+const editableContent = ref({});
+const validationErrors = ref({});
+const isLocked = ref(false);
+// --- NUEVO REF PARA EL NOMBRE DEL TEMPLATE ---
+const templateName = ref('');
+
+// --- Lógica de Autoguardado ---
+const isSaving = ref(false);
+const hasUnsavedChanges = ref(false);
+const autoSaveInterval = 10000; // Guardar cada 10 segundos
+let autoSaveTimer = null;
+
+const autoSaveStatus = reactive({
+  text: 'Listo',
+  class: 'bg-secondary'
+});
+
+const handleContentChange = () => {
+  if (!hasUnsavedChanges.value) {
+    autoSaveStatus.text = 'Cambios sin guardar';
+    autoSaveStatus.class = 'bg-warning';
+  }
+  hasUnsavedChanges.value = true;
+  updatePreview();
+};
+
+const handleTiptapUpdate = (key, newValue) => {
+  editableContent.value[key] = newValue;
+  handleContentChange();
+};
+
+const autoSaveChanges = async () => {
+  if (!hasUnsavedChanges.value || isSaving.value) return;
+
+  const isValid = validateContent(true);
+  if (!isValid) {
+    autoSaveStatus.text = 'Error de validación';
+    autoSaveStatus.class = 'bg-danger';
     return;
   }
-  if (!templateHtml.value) {
-    console.warn('templateHtml.value es nulo. No hay template para previsualizar.');
-    return;
+
+  isSaving.value = true;
+  autoSaveStatus.text = 'Guardando...';
+  autoSaveStatus.class = 'bg-info';
+
+  try {
+    await axios.put(`${import.meta.env.VITE_API_URL}/api/emails-editable/${uuid.value}`, {
+      updated_content: editableContent.value
+    });
+    
+    autoSaveStatus.text = 'Cambios guardados';
+    autoSaveStatus.class = 'bg-success';
+    hasUnsavedChanges.value = false;
+
+    window.dispatchEvent(new Event('mousemove'));
+    
+  } catch (err) {
+    console.error('Error en autoguardado:', err);
+    autoSaveStatus.text = 'Error al guardar';
+    autoSaveStatus.class = 'bg-danger';
+  } finally {
+    isSaving.value = false;
+    setTimeout(() => {
+        if (!hasUnsavedChanges.value) {
+            autoSaveStatus.text = 'Listo';
+            autoSaveStatus.class = 'bg-secondary';
+        }
+    }, 2000);
   }
+};
 
-  let finalHtml = templateHtml.value;
-
-  for (const key in editableContent.value) {
-    const placeholder = new RegExp(`{{\\s*${key}\\s*}}`, 'g');
-    let replacement = editableContent.value[key] || '';
-
-    if (key.includes('enlace_')) {
-      replacement = encodeURI(replacement);
+const manualSaveChanges = async () => {
+    const isValid = validateContent();
+    if (!isValid) {
+        showFeedback('Por favor, corrige los errores de validación.', 'error');
+        return;
     }
+    await autoSaveChanges();
+    if (autoSaveStatus.class === 'bg-success') {
+        showFeedback('Cambios guardados exitosamente!', 'success');
+    }
+};
 
-    finalHtml = finalHtml.replace(placeholder, replacement);
+const validateContent = (silent = false) => {
+  validationErrors.value = {};
+  let hasErrors = false;
+  for (const key in editableContent.value) {
+    const value = editableContent.value[key];
+    if (key.includes('enlace_')) {
+      if (!value || !isValidUrl(value)) {
+        if (!silent) validationErrors.value[key] = 'Introduce una URL válida.';
+        hasErrors = true;
+      }
+    } else {
+      if (!getPlainTextFromHtml(value).trim()) {
+        if (!silent) validationErrors.value[key] = 'El contenido no puede estar vacío.';
+        hasErrors = true;
+      }
+    }
   }
+  return !hasErrors;
+};
 
+const generateFinalHtml = () => {
+  if (!templateHtml.value) return '';
+  let finalHtml = templateHtml.value;
+  for (const key in editableContent.value) {
+    let rawContent = editableContent.value[key] || '';
+    if (key.includes('enlace_')) {
+      rawContent = encodeURI(rawContent);
+    }
+    const plainTextContent = getPlainTextFromHtml(rawContent);
+    const altRegex = new RegExp(`(alt="[^"]*){{\\s*${key}\\s*}}([^"]*")`, 'g');
+    finalHtml = finalHtml.replace(altRegex, `$1${plainTextContent}$2`);
+    const styledHtmlContent = rawContent.replace(/<p/g, '<p style="margin: 0;"');
+    const generalRegex = new RegExp(`{{\\s*${key}\\s*}}`, 'g');
+    finalHtml = finalHtml.replace(generalRegex, styledHtmlContent);
+  }
+  return finalHtml;
+}
+
+const previewIframe = ref(null);
+const previewWidth = ref('772px');
+
+const updatePreview = () => {
+  if (!previewIframe.value) return;
+  const finalHtml = generateFinalHtml();
   const fullHtml = `
     <!DOCTYPE html>
     <html>
-    <head>
-      <title>Previsualización</title>
-      <meta charset="utf-8">
-      <meta name="viewport" content="width=device-width, initial-scale=1">
-      <style>
-        body { font-family: Helvetica, Arial, sans-serif; margin: 0; padding: 0; background-color: #f6f6f6; }
-        h1, h2, h3, h4, h5, h6 { margin-top: 0; margin-bottom: 8px; }
-        p { margin: 0; }
-        a { color: #007bff; text-decoration: underline; }
-        .email-wrapper {
-          max-width: 772px;
-          margin: 0 auto;
-          background-color: #ffffff;
-          box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }
-        @media (max-width: 600px) {
-          .email-wrapper {
-            width: 100% !important;
-          }
-        }
-      </style>
-    </head>
-    <body>
-      <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%">
-        <tr>
-          <td align="center" style="padding: 20px 0;">
-            <div class="email-wrapper">
-              ${finalHtml}
-            </div>
-          </td>
-        </tr>
-      </table>
-    </body>
-    </html>
-  `;
-
-  previewIframe.value.contentWindow.document.open();
-  previewIframe.value.contentWindow.document.write(fullHtml);
-  previewIframe.value.contentWindow.document.close();
+    <head><title>Previsualización</title></head>
+    <body><div style="max-width: 772px; margin: auto;">${finalHtml}</div></body>
+    </html>`;
+  previewIframe.value.srcdoc = fullHtml;
 };
 
+const copyHtmlToClipboard = () => {
+  const textToCopy = generateFinalHtml();
+  navigator.clipboard.writeText(textToCopy)
+    .then(() => showFeedback('HTML copiado al portapapeles!', 'success'))
+    .catch(err => showFeedback('Error al copiar HTML.', 'error'));
+};
 
-// ⏬ ¡AQUÍ ESTÁ EL CAMBIO PRINCIPAL! ⏬
+const acquireLock = async () => {
+    try {
+        await axios.post(`${import.meta.env.VITE_API_URL}/api/emails-editable/${uuid.value}/lock`);
+        isLocked.value = true;
+    } catch (err) {
+        if (err.response?.status === 409) {
+            const lockedByUsername = err.response.data.message.split('por ')[1].split('.')[0];
+            showFeedback(`Este correo está siendo editado por ${lockedByUsername}.`, 'error');
+            router.push('/lista-correos');
+        } else {
+            error.value = 'Error al adquirir el bloqueo. No se puede editar.';
+        }
+        throw err;
+    }
+};
+
+const releaseLock = async () => {
+    try {
+        await axios.post(`${import.meta.env.VITE_API_URL}/api/emails-editable/${uuid.value}/unlock`);
+        isLocked.value = false;
+    } catch (err) {
+        console.error('Error al liberar el bloqueo:', err);
+    }
+};
+
 onMounted(async () => {
   if (!uuid.value) {
     error.value = 'UUID de correo no proporcionado.';
@@ -169,26 +261,24 @@ onMounted(async () => {
   }
 
   try {
-    // 1. PRIMERO, intentamos bloquear el correo. La función mostrará el mensaje que quieres.
     await acquireLock();
-
-    // 2. SI EL BLOQUEO FUE EXITOSO, cargamos el resto de los datos.
     const emailResponse = await axios.get(`${import.meta.env.VITE_API_URL}/api/emails-editable/${uuid.value}`);
-    const { template_id, content_json } = emailResponse.data;
+    // --- LÍNEA MODIFICADA PARA OBTENER EL template_name ---
+    const { template_id, content_json, template_name } = emailResponse.data;
 
     const templateResponse = await axios.get(`${import.meta.env.VITE_API_URL}/api/templates/${template_id}`);
     templateHtml.value = templateResponse.data.html_content;
     editableContent.value = content_json;
+    templateName.value = template_name; // Guardamos el nombre del template
 
     nextTick(() => {
       updatePreview();
+      autoSaveTimer = setInterval(autoSaveChanges, autoSaveInterval);
     });
 
   } catch (err) {
-    // Si el error es 409 (conflicto), ya fue manejado por acquireLock, así que no lo mostramos de nuevo.
     if (err.response?.status !== 409) {
-      console.error('Error al cargar datos del correo o template:', err);
-      error.value = `Error al cargar. Asegúrate de que el backend está funcionando: ${err.message}`;
+      error.value = `Error al cargar. Asegúrate de que el backend está funcionando.`;
     }
   } finally {
     loading.value = false;
@@ -199,123 +289,20 @@ onMounted(async () => {
 });
 
 onBeforeUnmount(async () => {
-    if (isLocked.value) {
-        await releaseLock();
-    }
+  clearInterval(autoSaveTimer);
+  if (hasUnsavedChanges.value) {
+    await autoSaveChanges();
+  }
+  if (isLocked.value) {
+    await releaseLock();
+  }
 });
-
-const saveChanges = async () => {
-  if (!isLocked.value) {
-        showFeedback('No tienes permiso para guardar. El correo no está bloqueado por ti.', 'error');
-        return;
-    }
-
-  validationErrors.value = {};
-  let hasValidationErrors = false;
-  for (const key in editableContent.value) {
-    const value = editableContent.value[key];
-
-    if (key.includes('enlace_')) {
-      if (!value) {
-        validationErrors.value[key] = 'Este campo de URL no puede estar vacío.';
-        hasValidationErrors = true;
-      } else if (!isValidUrl(value)) {
-        validationErrors.value[key] = 'Por favor, introduce una URL válida.';
-        hasValidationErrors = true;
-      }
-    } else {
-      const plainText = getPlainTextFromHtml(value);
-      if (!plainText.trim()) {
-        validationErrors.value[key] = 'El contenido no puede estar vacío.';
-        hasValidationErrors = true;
-      }
-    }
-  }
-
-  if (hasValidationErrors) {
-    showFeedback('Por favor, corrige los errores de validación.', 'error');
-    return;
-  }
-
-  isSaving.value = true;
-  try {
-    await axios.put(`${import.meta.env.VITE_API_URL}/api/emails-editable/${uuid.value}`, {
-      updated_content: editableContent.value
-    });
-    showFeedback('Cambios guardados exitosamente!', 'success');
-  } catch (err) {
-    console.error('Error al guardar cambios:', err);
-    showFeedback('Error al guardar cambios. Revisa la consola.', 'error');
-  } finally {
-    isSaving.value = false;
-  }
-};
-
-const copyHtmlToClipboard = () => {
-  let finalHtml = templateHtml.value;
-  for (const key in editableContent.value) {
-    const placeholder = new RegExp(`{{\\s*${key}\\s*}}`, 'g');
-    let replacement = editableContent.value[key] || '';
-    if (key.includes('enlace_')) {
-      replacement = encodeURI(replacement);
-    }
-    finalHtml = finalHtml.replace(placeholder, replacement);
-  }
-
-  const textToCopy = finalHtml;
-
-  navigator.clipboard.writeText(textToCopy)
-    .then(() => {
-      showFeedback('HTML copiado al portapapeles!', 'success');
-    })
-    .catch(err => {
-      console.error('Error al copiar HTML:', err);
-      showFeedback('Error al copiar HTML. Tu navegador podría requerir HTTPS o permisos específicos para copiar.', 'error');
-    });
-};
-
-// Adquirir el bloqueo
-const acquireLock = async () => {
-    try {
-        await axios.post(`${import.meta.env.VITE_API_URL}/api/emails-editable/${uuid.value}/lock`);
-        isLocked.value = true;
-        // ¡ESTA LÍNEA ES LA QUE MUESTRA EL MENSAJE QUE QUIERES VER!
-        showFeedback('Correo bloqueado para edición.', 'success');
-    } catch (err) {
-        if (err.response?.status === 409) { // 409 Conflict
-            isLocked.value = false;
-            lockedByUsername.value = err.response.data.message.split('por ')[1].split('.')[0];
-            showFeedback(`Este correo está siendo editado por ${lockedByUsername.value}.`, 'error');
-            // Redirigimos al usuario si no puede editar
-            router.push('/lista-correos');
-        } else {
-            error.value = 'Error al adquirir el bloqueo. No se puede editar.';
-            showFeedback('Error al adquirir el bloqueo.', 'error');
-        }
-        // Lanzamos el error para que el `onMounted` detenga su ejecución
-        throw err;
-    }
-};
-
-// Liberar el bloqueo
-const releaseLock = async () => {
-    try {
-        await axios.post(`${import.meta.env.VITE_API_URL}/api/emails-editable/${uuid.value}/unlock`);
-        isLocked.value = false;
-        // No es necesario notificar al usuario, es una acción en segundo plano
-        console.log('Correo desbloqueado.');
-    } catch (err) {
-        console.error('Error al liberar el bloqueo:', err);
-    }
-};
-
 </script>
 
 <style scoped>
-
-.scroll{
-  max-height: 2100px; /* Ajusta según sea necesario */
+.scroll {
+  max-height: 2100px;
   overflow-y: auto;
-  padding-right: 10px; /* Espacio para la barra de desplazamiento */
+  padding-right: 10px;
 }
 </style>

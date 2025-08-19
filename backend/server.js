@@ -225,7 +225,10 @@ app.post('/api/emails-editable', protect, [
 app.get('/api/emails-editable/:uuid', protect, async (req, res) => {
     const { uuid } = req.params;
     try {
-        const [rows] = await pool.execute('SELECT template_id, content_json, is_locked, locked_by_user_id FROM emails_editable WHERE uuid = ?', [uuid]);
+        const [rows] = await pool.execute(
+            'SELECT e.template_id, t.name AS template_name, e.content_json, e.is_locked, e.locked_by_user_id FROM emails_editable e JOIN templates t ON e.template_id = t.id WHERE e.uuid = ?',
+            [uuid]
+        );
         if (rows.length === 0) return res.status(404).json({ message: 'Correo editable no encontrado.' });
         const emailData = rows[0];
         emailData.content_json = JSON.parse(emailData.content_json);
@@ -269,18 +272,42 @@ app.put('/api/emails-editable/:uuid', protect, [
     }
 });
 
+// --- RUTA MODIFICADA ---
 // Ruta para eliminar un correo editable por UUID
 app.delete('/api/emails-editable/:uuid', protect, async (req, res) => {
     const { uuid } = req.params;
+    const currentUserId = req.user.id;
+
     try {
+        // Primero, verifica el estado de bloqueo del correo
+        const [emailRows] = await pool.execute('SELECT is_locked, locked_by_user_id FROM emails_editable WHERE uuid = ?', [uuid]);
+
+        if (emailRows.length === 0) {
+            return res.status(404).json({ message: 'Correo editable no encontrado.' });
+        }
+
+        const email = emailRows[0];
+
+        // Si el correo está bloqueado por OTRO usuario, impide la eliminación
+        if (email.is_locked && email.locked_by_user_id !== currentUserId) {
+            const [userRows] = await pool.execute('SELECT username FROM users WHERE id = ?', [email.locked_by_user_id]);
+            const lockedByUsername = userRows.length > 0 ? userRows[0].username : 'otro usuario';
+            return res.status(409).json({ message: `Este correo está siendo editado por ${lockedByUsername} y no se puede eliminar.` });
+        }
+
+        // Si no está bloqueado, o está bloqueado por el mismo usuario, permite la eliminación
         const [result] = await pool.execute('DELETE FROM emails_editable WHERE uuid = ?', [uuid]);
-        if (result.affectedRows === 0) return res.status(404).json({ message: 'Correo editable no encontrado.' });
+        if (result.affectedRows === 0) {
+            return res.status(404).json({ message: 'Correo no encontrado para eliminar.' });
+        }
         res.json({ message: 'Correo eliminado exitosamente.' });
+
     } catch (error) {
         console.error('Error al eliminar correo editable:', error);
         res.status(500).json({ message: 'Error interno del servidor.' });
     }
 });
+
 
 // Rutas para bloqueo y desbloqueo de edición
 app.post('/api/emails-editable/:uuid/lock', protect, async (req, res) => {
