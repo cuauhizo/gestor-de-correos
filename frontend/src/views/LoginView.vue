@@ -17,7 +17,7 @@
           {{ authStore.loading ? 'Cargando...' : 'Entrar' }}
         </button>
       </form>
-      <p class="text-center mt-3">¿No tienes una cuenta? <router-link to="/register">Regístrate aquí</router-link></p>
+      <!-- <p class="text-center mt-3">¿No tienes una cuenta? <router-link to="/register">Regístrate aquí</router-link></p> -->
     </div>
   </div>
 </template>

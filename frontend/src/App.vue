@@ -102,12 +102,12 @@ onBeforeUnmount(() => {
             </template>
           </ul>
           <ul class="navbar-nav ms-auto">
-            <li class="nav-item" v-if="!authStore.isAuthenticated">
+            <!-- <li class="nav-item" v-if="!authStore.isAuthenticated">
               <router-link to="/login" class="nav-link" active-class="active">Iniciar Sesión</router-link>
             </li>
             <li class="nav-item" v-if="!authStore.isAuthenticated">
               <router-link to="/register" class="nav-link" active-class="active">Registro</router-link>
-            </li>
+            </li> -->
             <li class="nav-item" v-if="authStore.isAuthenticated">
               <span class="nav-link text-white">Hola, {{ authStore.user?.username }}!</span>
             </li>
