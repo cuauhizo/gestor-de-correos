@@ -3,9 +3,6 @@
     <div class="row">
       <div class="col-12 text-center mb-4">
         <h1>Editor de Contenido de Correo</h1>
-        <!-- <h2 v-if="templateName" class="h4 text-muted fw-normal">
-          Editando Template: <span class="fw-bold">{{ templateName }}</span>
-        </h2> -->
       </div>
       <div class="col-12">
         <div v-if="loading" class="text-center text-secondary">Cargando correo...</div>
@@ -19,7 +16,7 @@
                 <span :class="['badge', autoSaveStatus.class]">{{ autoSaveStatus.text }}</span>
               </div>
               <div class="scroll">
-                <div v-for="(value, key) in editableContent" :key="key" class="mb-3">
+                <div v-for="(value, key) in editableContent" :key="key" class="mb-3" :data-editor-wrapper-key="key">
                   <label :for="key" class="form-label fw-bold">{{ capitalizeFirstLetter(key.replace(/_/g, ' ')) }}:</label>
                   <template v-if="key.includes('enlace_')">
                     <input
@@ -56,7 +53,12 @@
           <div class="col-md-8">
             <div class="card p-3 h-100">
               <h3 v-if="templateName" class="card-title text-center mb-3">Previsualización del Correo - <span class="fw-bold">{{ templateName }}</span></h3>
-              <iframe ref="previewIframe" :style="{ width: previewWidth, height: '2100px' }" class="w-100 border rounded shadow-sm"></iframe>
+              <iframe
+                ref="previewIframe"
+                @load="handlePreviewLoad"
+                :style="{ width: previewWidth, height: '2100px', border: '1px solid #ccc', 'background-color': '#f6f6f6' }"
+                class="w-100 border rounded shadow-sm"
+              ></iframe>
             </div>
           </div>
         </div>
@@ -69,7 +71,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, nextTick, onBeforeUnmount, reactive, watch } from 'vue';
+import { ref, onMounted, nextTick, onBeforeUnmount, reactive } from 'vue';
 import axios from '../services/api.js';
 import { useRoute, useRouter } from 'vue-router';
 import TiptapEditor from '../components/TiptapEditor.vue';
@@ -81,26 +83,74 @@ const route = useRoute();
 const uuid = ref(route.params.uuid);
 const { feedbackMessage, feedbackType, showFeedback } = useFeedback();
 
-// --- Estados del componente ---
+// ... (estados del componente)
 const loading = ref(true);
 const error = ref(null);
 const templateHtml = ref('');
 const editableContent = ref({});
 const validationErrors = ref({});
 const isLocked = ref(false);
-// --- NUEVO REF PARA EL NOMBRE DEL TEMPLATE ---
 const templateName = ref('');
+const previewIframe = ref(null);
+const previewWidth = ref('772px');
 
-// --- Lógica de Autoguardado ---
-const isSaving = ref(false);
-const hasUnsavedChanges = ref(false);
-const autoSaveInterval = 10000; // Guardar cada 10 segundos
-let autoSaveTimer = null;
+let isPreviewReady = false;
+let debouncePreviewTimer = null;
 
-const autoSaveStatus = reactive({
-  text: 'Listo',
-  class: 'bg-secondary'
-});
+// PASO 2: Creamos la función que enfocará el editor
+const focusEditor = (key) => {
+  if (!key) return;
+  // Busca el contenedor del editor usando el data-attribute que pusimos en el template
+  const wrapper = document.querySelector(`[data-editor-wrapper-key="${key}"]`);
+  if (wrapper) {
+    // Busca el elemento editable dentro del contenedor (input, textarea o el editor de Tiptap)
+    const inputElement = wrapper.querySelector('input, textarea, .ProseMirror');
+    if (inputElement) {
+      inputElement.focus();
+      // Desplaza la vista para que el editor quede centrado
+      wrapper.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }
+};
+
+const handlePreviewLoad = () => {
+  isPreviewReady = true;
+  updatePreviewContent();
+
+  // PASO 3: Añadimos el listener de doble clic al iframe
+  const iframeDoc = previewIframe.value.contentWindow.document;
+  if (iframeDoc) {
+    iframeDoc.addEventListener('dblclick', (event) => {
+      let target = event.target;
+      // Busca hacia arriba en el DOM desde el elemento clickeado
+      while (target && target !== iframeDoc.body) {
+        // Si encuentra un elemento con nuestro 'data-editor-key'
+        if (target.dataset && target.dataset.editorKey) {
+          const key = target.dataset.editorKey;
+          // Llama a la función de la ventana padre para enfocar el editor
+          window.parent.focusEditor(key);
+          break; // Detiene la búsqueda
+        }
+        target = target.parentElement;
+      }
+    });
+  }
+};
+
+const updatePreviewContent = () => {
+  if (!isPreviewReady || !previewIframe.value) return;
+  const finalHtml = generateFinalHtml();
+  previewIframe.value.contentWindow.document.body.innerHTML = `
+    <div style="max-width: 772px; margin: 30px auto; background-color: #ffffff; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+      ${finalHtml}
+    </div>
+  `;
+};
+
+const debouncedUpdatePreview = () => {
+  clearTimeout(debouncePreviewTimer);
+  debouncePreviewTimer = setTimeout(updatePreviewContent, 200);
+};
 
 const handleContentChange = () => {
   if (!hasUnsavedChanges.value) {
@@ -108,7 +158,7 @@ const handleContentChange = () => {
     autoSaveStatus.class = 'bg-warning';
   }
   hasUnsavedChanges.value = true;
-  updatePreview();
+  debouncedUpdatePreview();
 };
 
 const handleTiptapUpdate = (key, newValue) => {
@@ -116,35 +166,48 @@ const handleTiptapUpdate = (key, newValue) => {
   handleContentChange();
 };
 
+// ... (lógica de autoguardado)
+const isSaving = ref(false);
+const hasUnsavedChanges = ref(false);
+const autoSaveInterval = 10000;
+let autoSaveTimer = null;
+const autoSaveStatus = reactive({
+  text: 'Listo',
+  class: 'bg-secondary'
+});
+
 const autoSaveChanges = async () => {
   if (!hasUnsavedChanges.value || isSaving.value) return;
-
   const isValid = validateContent(true);
   if (!isValid) {
     autoSaveStatus.text = 'Error de validación';
     autoSaveStatus.class = 'bg-danger';
     return;
   }
-
   isSaving.value = true;
   autoSaveStatus.text = 'Guardando...';
   autoSaveStatus.class = 'bg-info';
-
   try {
     await axios.put(`${import.meta.env.VITE_API_URL}/api/emails-editable/${uuid.value}`, {
       updated_content: editableContent.value
     });
-    
     autoSaveStatus.text = 'Cambios guardados';
     autoSaveStatus.class = 'bg-success';
     hasUnsavedChanges.value = false;
-
     window.dispatchEvent(new Event('mousemove'));
-    
   } catch (err) {
     console.error('Error en autoguardado:', err);
-    autoSaveStatus.text = 'Error al guardar';
-    autoSaveStatus.class = 'bg-danger';
+    if (err.response?.status === 404) {
+      autoSaveStatus.text = 'Correo eliminado';
+      autoSaveStatus.class = 'bg-danger';
+      error.value = 'Este correo fue eliminado por otro usuario. Serás redirigido.';
+      clearInterval(autoSaveTimer);
+      document.querySelectorAll('.card button').forEach(button => button.disabled = true);
+      setTimeout(() => router.push('/lista-correos'), 4000);
+    } else {
+      autoSaveStatus.text = 'Error al guardar';
+      autoSaveStatus.class = 'bg-danger';
+    }
   } finally {
     isSaving.value = false;
     setTimeout(() => {
@@ -199,27 +262,14 @@ const generateFinalHtml = () => {
     const plainTextContent = getPlainTextFromHtml(rawContent);
     const altRegex = new RegExp(`(alt="[^"]*){{\\s*${key}\\s*}}([^"]*")`, 'g');
     finalHtml = finalHtml.replace(altRegex, `$1${plainTextContent}$2`);
-    const styledHtmlContent = rawContent.replace(/<p/g, '<p style="margin: 0;"');
+    
+    // PASO 4: Envolvemos el contenido con un span que lleva el data-attribute
+    const styledHtmlContent = `<span data-editor-key="${key}">${rawContent.replace(/<p/g, '<p style="margin: 0;"')}</span>`;
     const generalRegex = new RegExp(`{{\\s*${key}\\s*}}`, 'g');
     finalHtml = finalHtml.replace(generalRegex, styledHtmlContent);
   }
   return finalHtml;
 }
-
-const previewIframe = ref(null);
-const previewWidth = ref('772px');
-
-const updatePreview = () => {
-  if (!previewIframe.value) return;
-  const finalHtml = generateFinalHtml();
-  const fullHtml = `
-    <!DOCTYPE html>
-    <html>
-    <head><title>Previsualización</title></head>
-    <body><div style="max-width: 772px; margin: auto;">${finalHtml}</div></body>
-    </html>`;
-  previewIframe.value.srcdoc = fullHtml;
-};
 
 const copyHtmlToClipboard = () => {
   const textToCopy = generateFinalHtml();
@@ -254,42 +304,57 @@ const releaseLock = async () => {
 };
 
 onMounted(async () => {
+  // PASO 5: Hacemos la función 'focusEditor' accesible desde el iframe
+  window.focusEditor = focusEditor;
+
   if (!uuid.value) {
     error.value = 'UUID de correo no proporcionado.';
     loading.value = false;
     return;
   }
-
   try {
     await acquireLock();
     const emailResponse = await axios.get(`${import.meta.env.VITE_API_URL}/api/emails-editable/${uuid.value}`);
-    // --- LÍNEA MODIFICADA PARA OBTENER EL template_name ---
     const { template_id, content_json, template_name } = emailResponse.data;
 
     const templateResponse = await axios.get(`${import.meta.env.VITE_API_URL}/api/templates/${template_id}`);
     templateHtml.value = templateResponse.data.html_content;
     editableContent.value = content_json;
-    templateName.value = template_name; // Guardamos el nombre del template
+    templateName.value = template_name;
 
     nextTick(() => {
-      updatePreview();
+      const initialHtml = `
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <style>
+              body { font-family: Helvetica, Arial, sans-serif; margin: 0; padding: 0; cursor: pointer; }
+              /* Este estilo es para que el span no altere el layout del correo */
+              span[data-editor-key] { display: contents; }
+            </style>
+          </head>
+          <body>
+          </body>
+        </html>
+      `;
+      previewIframe.value.srcdoc = initialHtml;
       autoSaveTimer = setInterval(autoSaveChanges, autoSaveInterval);
     });
-
   } catch (err) {
     if (err.response?.status !== 409) {
       error.value = `Error al cargar. Asegúrate de que el backend está funcionando.`;
     }
   } finally {
     loading.value = false;
-    nextTick(() => {
-      updatePreview();
-    });
   }
 });
 
 onBeforeUnmount(async () => {
+  // Limpiamos la función global para evitar memory leaks
+  delete window.focusEditor;
+  
   clearInterval(autoSaveTimer);
+  clearTimeout(debouncePreviewTimer);
   if (hasUnsavedChanges.value) {
     await autoSaveChanges();
   }
