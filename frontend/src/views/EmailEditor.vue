@@ -374,6 +374,25 @@ onMounted(async () => {
     }
   } finally {
     loading.value = false;
+    nextTick(() => {
+      const initialHtml = `
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <style>
+              body { font-family: Helvetica, Arial, sans-serif; margin: 0; padding: 0; }
+              span[data-editor-key] { cursor: pointer; display: contents; }
+              img[data-editor-key] { cursor: pointer; border: 2px dashed transparent; transition: border-color 0.2s; }
+              img[data-editor-key]:hover { border-color: #0d6efd; }
+            </style>
+          </head>
+          <body></body>
+        </html>
+      `;
+      previewIframe.value.srcdoc = initialHtml;
+      // CAMBIO: Iniciamos el ciclo de autoguardado por primera vez
+      scheduleNextAutoSave();
+    });
   }
 });
 onBeforeUnmount(async () => {
