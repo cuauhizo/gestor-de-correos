@@ -347,6 +347,23 @@ app.post('/api/emails-editable/:uuid/unlock', protect, async (req, res) => {
     }
 });
 
+app.post('/api/emails-editable/:uuid/force-unlock', protect, admin, async (req, res) => {
+    const { uuid } = req.params;
+    try {
+        const [result] = await pool.execute(
+            'UPDATE emails_editable SET is_locked = 0, locked_by_user_id = NULL WHERE uuid = ?',
+            [uuid]
+        );
+        if (result.affectedRows === 0) {
+            return res.status(404).json({ message: 'Correo no encontrado.' });
+        }
+        res.status(200).json({ message: 'Correo desbloqueado por el administrador.' });
+    } catch (error) {
+        console.error('Error al forzar el desbloqueo:', error);
+        res.status(500).json({ message: 'Error al forzar el desbloqueo del correo.' });
+    }
+});
+
 // --- Rutas de Gestión de Templates ---
 // Ruta para obtener todos los templates (pública)
 app.get('/api/templates', async (req, res) => {

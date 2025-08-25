@@ -10,7 +10,9 @@
 
       <ul class="list-group">
         <li v-for="email in emails" :key="email.uuid" class="list-group-item d-flex justify-content-between align-items-center">
+          <!-- <pre>{{ email }}</pre> -->
           <div class="flex-grow-1">
+            <!-- <strong>UUID:</strong> {{ email.uuid }}<br> -->
             <strong>Nombre template:</strong> {{ email.template_name }}<br>
             <strong>Creado por:</strong> {{ email.creator_username || 'Usuario desconocido' }}<br>
             <strong>Última modificación por:</strong> {{ email.last_modifier_username || 'Usuario desconocido' }}<br>
@@ -37,49 +39,24 @@ import axios from '../services/api.js';
 import { useRouter } from 'vue-router';
 import { formatDate } from '../utils/helpers.js';
 import { useFeedback } from '../composables/useFeedback.js';
-import { useAuthStore } from '../stores/auth.js'; // Importar el store de autenticación
 
 const emails = ref([]);
 const loading = ref(true);
 const error = ref(null);
 const router = useRouter();
 const { feedbackMessage, feedbackType, showFeedback } = useFeedback();
-const authStore = useAuthStore(); // Crear una instancia del store
 
-// --- FUNCIÓN handleEdit MODIFICADA ---
 const handleEdit = async (email) => {
   try {
-    // Intento de bloqueo normal
-    await axios.post(`/api/emails-editable/${email.uuid}/lock`);
+    const response = await axios.post(`${import.meta.env.VITE_API_URL}/api/emails-editable/${email.uuid}/lock`);
+    showFeedback(response.data.message, 'success');
     router.push({ name: 'email-editor', params: { uuid: email.uuid } });
   } catch (err) {
     if (err.response?.status === 409) {
-      // Si el correo está bloqueado (error 409), comprobamos si el usuario es admin
-      if (authStore.isAdmin) {
-        if (confirm(`Este correo está bloqueado. Como administrador, ¿quieres forzar el desbloqueo?`)) {
-          forceUnlockAndEdit(email);
-        }
-      } else {
-        // Si no es admin, muestra el mensaje de error normal
-        showFeedback(err.response.data.message, 'error');
-      }
+      showFeedback(err.response.data.message, 'error');
     } else {
       showFeedback('Error al intentar editar. Intenta de nuevo más tarde.', 'error');
     }
-  }
-};
-
-// --- NUEVA FUNCIÓN para forzar desbloqueo ---
-const forceUnlockAndEdit = async (email) => {
-  try {
-    // Llama a la nueva ruta del backend
-    await axios.post(`/api/emails-editable/${email.uuid}/force-unlock`);
-    showFeedback('Correo desbloqueado. Ahora puedes editar.', 'success');
-    // Inmediatamente intenta bloquearlo de nuevo para el admin y redirige
-    await handleEdit(email);
-  } catch (err) {
-    console.error('Error al forzar el desbloqueo:', err);
-    showFeedback('No se pudo forzar el desbloqueo.', 'error');
   }
 };
 
@@ -87,7 +64,7 @@ const fetchEmails = async () => {
   loading.value = true;
   error.value = null;
   try {
-    const response = await axios.get('/api/emails-editable');
+    const response = await axios.get(`${import.meta.env.VITE_API_URL}/api/emails-editable`);
     emails.value = response.data;
   } catch (err) {
     console.error('Error al cargar la lista de correos:', err);
@@ -102,11 +79,12 @@ const deleteEmail = async (uuidToDelete) => {
     return;
   }
   try {
-    await axios.delete(`/api/emails-editable/${uuidToDelete}`);
+    await axios.delete(`${import.meta.env.VITE_API_URL}/api/emails-editable/${uuidToDelete}`);
     emails.value = emails.value.filter(email => email.uuid !== uuidToDelete);
     showFeedback('Correo eliminado exitosamente.', 'success');
   } catch (err) {
     console.error('Error al eliminar correo:', err);
+    // NUEVO: Manejo específico para el error de conflicto
     if (err.response?.status === 409) {
       showFeedback(err.response.data.message, 'error');
     } else {
