@@ -3,6 +3,9 @@
     <div class="row">
       <div class="col-12 text-center mb-4">
         <h1>Editor de Contenido de Correo</h1>
+        <h2 v-if="templateName" class="h4 text-muted fw-normal">
+          Editando Template: <span class="fw-bold">{{ templateName }}</span>
+        </h2>
       </div>
       <div class="col-12">
         <div v-if="loading" class="text-center text-secondary">Cargando correo...</div>
@@ -80,11 +83,13 @@ import { useRoute, useRouter } from 'vue-router';
 import TiptapEditor from '../components/TiptapEditor.vue';
 import { capitalizeFirstLetter, isValidUrl, getPlainTextFromHtml } from '../utils/helpers.js';
 import { useFeedback } from '../composables/useFeedback.js';
+import { useAuthStore } from '../stores/auth.js'; // 1. Importar el store de autenticación
 
 const router = useRouter();
 const route = useRoute();
 const uuid = ref(route.params.uuid);
 const { feedbackMessage, feedbackType, showFeedback } = useFeedback();
+const authStore = useAuthStore(); // 2. Crear una instancia del store
 
 // --- Estados del componente ---
 const loading = ref(true);
@@ -99,41 +104,36 @@ const previewWidth = ref('772px');
 let isPreviewReady = false;
 let debouncePreviewTimer = null;
 
-// --- Lógica de Autoguardado (Mejorada) ---
+// --- Lógica de Autoguardado ---
 const isSaving = ref(false);
 const hasUnsavedChanges = ref(false);
 const autoSaveInterval = 10000;
-let autoSaveTimeoutId = null; // Usaremos esto para controlar el timeout
+let autoSaveTimeoutId = null;
 const autoSaveStatus = reactive({
   text: 'Listo',
   class: 'bg-secondary'
 });
 
-// CAMBIO: Esta función programa el siguiente autoguardado
 const scheduleNextAutoSave = () => {
-  clearTimeout(autoSaveTimeoutId); // Limpia cualquier timer anterior
+  clearTimeout(autoSaveTimeoutId);
   autoSaveTimeoutId = setTimeout(autoSaveChanges, autoSaveInterval);
 };
 
 const autoSaveChanges = async () => {
-  // Si no hay cambios o ya se está guardando, simplemente reprograma e ignora
   if (!hasUnsavedChanges.value || isSaving.value) {
     scheduleNextAutoSave();
     return;
   }
-
   const isValid = validateContent(true);
   if (!isValid) {
     autoSaveStatus.text = 'Error de validación';
     autoSaveStatus.class = 'bg-danger';
-    scheduleNextAutoSave(); // Reprograma para volver a intentar más tarde
+    scheduleNextAutoSave();
     return;
   }
-
   isSaving.value = true;
   autoSaveStatus.text = 'Guardando...';
   autoSaveStatus.class = 'bg-info';
-
   try {
     await axios.put(`/api/emails-editable/${uuid.value}`, {
       updated_content: editableContent.value
@@ -148,8 +148,8 @@ const autoSaveChanges = async () => {
       autoSaveStatus.text = 'Correo eliminado';
       autoSaveStatus.class = 'bg-danger';
       error.value = 'Este correo fue eliminado. No se pueden guardar más cambios.';
-      clearTimeout(autoSaveTimeoutId); // Detenemos el autoguardado permanentemente
-      return; // No reprogramar
+      clearTimeout(autoSaveTimeoutId);
+      return;
     } else {
       autoSaveStatus.text = 'Error al guardar';
       autoSaveStatus.class = 'bg-danger';
@@ -162,11 +162,9 @@ const autoSaveChanges = async () => {
         autoSaveStatus.class = 'bg-secondary';
       }
     }, 2000);
-    // CAMBIO: Reprograma el siguiente guardado, sin importar si tuvo éxito o fue un error temporal
     scheduleNextAutoSave();
   }
 };
-
 
 const visibleEditableContent = computed(() => {
   const filteredContent = {};
@@ -177,12 +175,14 @@ const visibleEditableContent = computed(() => {
   }
   return filteredContent;
 });
+
 const updateEditableContent = (key, newValue) => {
   if (editableContent.value[key] !== newValue) {
     editableContent.value[key] = newValue;
     handleContentChange();
   }
 };
+
 const focusEditor = (key) => {
   if (!key) return;
   const wrapper = document.querySelector(`[data-editor-wrapper-key="${key}"]`);
@@ -194,6 +194,7 @@ const focusEditor = (key) => {
     }
   }
 };
+
 const handlePreviewLoad = () => {
   isPreviewReady = true;
   updatePreviewContent();
@@ -209,20 +210,25 @@ const handlePreviewLoad = () => {
         target = target.parentElement;
       }
     });
-    iframeDoc.addEventListener('click', (event) => {
-      const target = event.target;
-      if (target.tagName === 'IMG' && target.dataset.editorKey) {
-        event.preventDefault();
-        const key = target.dataset.editorKey;
-        const currentUrl = editableContent.value[key] || '';
-        const newUrl = prompt("Introduce la nueva URL de la imagen:", currentUrl);
-        if (newUrl !== null && newUrl !== currentUrl) {
-          window.parent.updateEditableContent(key, newUrl);
+
+    // 3. Añadimos el listener de clic SOLO si el usuario es admin
+    if (authStore.isAdmin) {
+      iframeDoc.addEventListener('click', (event) => {
+        const target = event.target;
+        if (target.tagName === 'IMG' && target.dataset.editorKey) {
+          event.preventDefault();
+          const key = target.dataset.editorKey;
+          const currentUrl = editableContent.value[key] || '';
+          const newUrl = prompt("Introduce la nueva URL de la imagen:", currentUrl);
+          if (newUrl !== null && newUrl !== currentUrl) {
+            window.parent.updateEditableContent(key, newUrl);
+          }
         }
-      }
-    });
+      });
+    }
   }
 };
+
 const updatePreviewContent = () => {
   if (!isPreviewReady || !previewIframe.value) return;
   const finalHtml = generateFinalHtml();
@@ -232,10 +238,12 @@ const updatePreviewContent = () => {
   </div>
   `;
 };
+
 const debouncedUpdatePreview = () => {
   clearTimeout(debouncePreviewTimer);
   debouncePreviewTimer = setTimeout(updatePreviewContent, 200);
 };
+
 const generateFinalHtml = (forClipboard = false) => {
   let finalHtml = templateHtml.value;
   let imgIndex = 0;
@@ -243,7 +251,8 @@ const generateFinalHtml = (forClipboard = false) => {
     const key = `image_${imgIndex}`;
     const newSrc = editableContent.value[key] ? `src="${encodeURI(editableContent.value[key])}"` : 'src=""';
     let newTag = match.replace(/src="[^"]*"/, newSrc);
-    if (!forClipboard) {
+    // 4. Añadimos el data-key (y por tanto la interactividad) SOLO si es admin
+    if (!forClipboard && authStore.isAdmin) {
       newTag = newTag.replace('<img', `<img data-editor-key="${key}"`);
     }
     imgIndex++;
@@ -266,6 +275,7 @@ const generateFinalHtml = (forClipboard = false) => {
   }
   return finalHtml;
 };
+
 const handleContentChange = () => {
   if (!hasUnsavedChanges.value) {
     autoSaveStatus.text = 'Cambios sin guardar';
@@ -274,17 +284,20 @@ const handleContentChange = () => {
   hasUnsavedChanges.value = true;
   debouncedUpdatePreview();
 };
+
 const handleTiptapUpdate = (key, newValue) => {
   editableContent.value[key] = newValue;
   handleContentChange();
 };
+
 const manualSaveChanges = async () => {
-    clearTimeout(autoSaveTimeoutId); // Detenemos el timer para forzar el guardado manual
+    clearTimeout(autoSaveTimeoutId);
     await autoSaveChanges();
     if (autoSaveStatus.class === 'bg-success') {
         showFeedback('Cambios guardados exitosamente!', 'success');
     }
 };
+
 const validateContent = (silent = false) => {
   validationErrors.value = {};
   let hasErrors = false;
@@ -304,12 +317,14 @@ const validateContent = (silent = false) => {
   }
   return !hasErrors;
 };
+
 const copyHtmlToClipboard = () => {
   const textToCopy = generateFinalHtml(true);
   navigator.clipboard.writeText(textToCopy)
     .then(() => showFeedback('HTML copiado al portapapeles!', 'success'))
     .catch(err => showFeedback('Error al copiar HTML.', 'error'));
 };
+
 const acquireLock = async () => {
     try {
         await axios.post(`/api/emails-editable/${uuid.value}/lock`);
@@ -325,6 +340,7 @@ const acquireLock = async () => {
         throw err;
     }
 };
+
 const releaseLock = async () => {
     try {
         await axios.post(`/api/emails-editable/${uuid.value}/unlock`);
@@ -333,6 +349,7 @@ const releaseLock = async () => {
         console.error('Error al liberar el bloqueo:', err);
     }
 };
+
 onMounted(async () => {
   window.focusEditor = focusEditor;
   window.updateEditableContent = updateEditableContent;
@@ -350,6 +367,12 @@ onMounted(async () => {
     editableContent.value = content_json;
     templateName.value = template_name;
     nextTick(() => {
+      // 5. Inyectamos los estilos condicionalmente
+      const isAdminStyles = authStore.isAdmin ? `
+        img[data-editor-key] { cursor: pointer; border: 2px dashed transparent; transition: border-color 0.2s; }
+        img[data-editor-key]:hover { border-color: #0d6efd; }
+      ` : '';
+
       const initialHtml = `
         <!DOCTYPE html>
         <html>
@@ -357,15 +380,13 @@ onMounted(async () => {
             <style>
               body { font-family: Helvetica, Arial, sans-serif; margin: 0; padding: 0; }
               span[data-editor-key] { cursor: pointer; display: contents; }
-              img[data-editor-key] { cursor: pointer; border: 2px dashed transparent; transition: border-color 0.2s; }
-              img[data-editor-key]:hover { border-color: #0d6efd; }
+              ${isAdminStyles}
             </style>
           </head>
           <body></body>
         </html>
       `;
       previewIframe.value.srcdoc = initialHtml;
-      // CAMBIO: Iniciamos el ciclo de autoguardado por primera vez
       scheduleNextAutoSave();
     });
   } catch (err) {
@@ -374,31 +395,12 @@ onMounted(async () => {
     }
   } finally {
     loading.value = false;
-    nextTick(() => {
-      const initialHtml = `
-        <!DOCTYPE html>
-        <html>
-          <head>
-            <style>
-              body { font-family: Helvetica, Arial, sans-serif; margin: 0; padding: 0; }
-              span[data-editor-key] { cursor: pointer; display: contents; }
-              img[data-editor-key] { cursor: pointer; border: 2px dashed transparent; transition: border-color 0.2s; }
-              img[data-editor-key]:hover { border-color: #0d6efd; }
-            </style>
-          </head>
-          <body></body>
-        </html>
-      `;
-      previewIframe.value.srcdoc = initialHtml;
-      // CAMBIO: Iniciamos el ciclo de autoguardado por primera vez
-      scheduleNextAutoSave();
-    });
   }
 });
+
 onBeforeUnmount(async () => {
   delete window.focusEditor;
   delete window.updateEditableContent;
-  // CAMBIO: Limpiamos el timeout en lugar del interval
   clearTimeout(autoSaveTimeoutId);
   clearTimeout(debouncePreviewTimer);
   if (hasUnsavedChanges.value) {
