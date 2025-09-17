@@ -33,18 +33,6 @@ const dbConfig = {
 
 let pool; // Pool de conexiones a la base de datos
 
-// Función para conectar a la base de datos
-async function connectToDatabase() {
-  try {
-    pool = mysql.createPool(dbConfig);
-    await pool.getConnection();
-    console.log('Conectado a la base de datos MySQL!');
-  } catch (error) {
-    console.error('Error al conectar a la base de datos:', error);
-    process.exit(1);
-  }
-}
-
 // Rutas (Endpoints API)
 app.get('/', (req, res) => {
   res.send('API del Editor de Correos funcionando!');
@@ -52,6 +40,16 @@ app.get('/', (req, res) => {
 
 // --- Middleware Global ---
 app.use(cors()); // Habilita CORS
+
+// Configuración específica de CORS para producción
+const corsOptions = {
+  origin: 'https://mailcreator.tolkogroup.com', // Permite solo peticiones desde tu frontend
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'], // Métodos permitidos
+  allowedHeaders: ['Content-Type', 'Authorization'], // Encabezados permitidos
+};
+
+app.use(cors(corsOptions)); // Habilita CORS con tu configuración específica
+
 app.use(express.json()); // Habilita el parseo de JSON
 
 // Middleware para verificar si el token JWT es válido y obtener la información del usuario
