@@ -1,123 +1,74 @@
 <template>
-  <div class="card p-4 mt-5 mx-auto" style="max-width: 900px;">
+  <div class="card p-4 mt-5 mx-auto" style="max-width: 900px">
     <h1 class="card-title text-center mb-4">Correos Editables Guardados</h1>
 
-    <div v-if="loading" class="text-center text-secondary">Cargando lista de correos...</div>
-    <div v-if="error" class="text-center text-danger">{{ error }}</div>
-
-    <div v-if="!loading && !error">
-      <p v-if="emails.length === 0" class="text-center">No hay correos editables guardados aún. <router-link to="/">Crea uno nuevo</router-link>.</p>
-
+    <div v-if="emailStore.loading" class="text-center text-secondary">Cargando lista de correos...</div>
+    <div v-if="emailStore.error" class="text-center text-danger">{{ emailStore.error }}</div>
+    <div v-if="!emailStore.loading && !emailStore.error">
+      <p v-if="emailStore.emails.length === 0" class="text-center">
+        No hay correos editables guardados aún.
+        <router-link to="/">Crea uno nuevo</router-link>
+        .
+      </p>
       <ul class="list-group">
-        <li v-for="email in emails" :key="email.uuid" class="list-group-item d-flex justify-content-between align-items-center">
+        <li v-for="email in emailStore.emails" :key="email.uuid" class="list-group-item d-flex justify-content-between align-items-center">
           <div class="flex-grow-1">
-            <strong>Nombre template:</strong> {{ email.template_name }}<br>
-            <strong>Creado por:</strong> {{ email.creator_username || 'Usuario desconocido' }}<br>
-            <strong>Última modificación por:</strong> {{ email.last_modifier_username || 'Usuario desconocido' }}<br>
-            <strong>Última Actualización:</strong> {{ formatDate(email.updated_at) }}
+            <strong>Nombre template:</strong>
+            {{ email.template_name }}
+            <br />
+            <strong>Creado por:</strong>
+            {{ email.creator_username || 'Usuario desconocido' }}
+            <br />
+            <strong>Última modificación por:</strong>
+            {{ email.last_modifier_username || 'Usuario desconocido' }}
+            <br />
+            <strong>Última Actualización:</strong>
+            {{ formatDate(email.updated_at) }}
           </div>
           <div class="d-flex gap-2">
-            <button @click="handleEdit(email)" class="btn btn-primary btn-sm">
-              Editar
-            </button>
-            <button @click="deleteEmail(email.uuid)" class="btn btn-danger btn-sm">Eliminar</button>
+            <button @click="handleEditClick(email)" class="btn btn-primary btn-sm">Editar</button>
+            <button @click="deleteEmailClick(email.uuid)" class="btn btn-danger btn-sm">Eliminar</button>
           </div>
         </li>
       </ul>
-    </div>
-    <div v-if="feedbackMessage" :class="['feedback-message', feedbackType]">
-      {{ feedbackMessage }}
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue';
-import axios from '../services/api.js';
-import { useRouter } from 'vue-router';
-import { formatDate } from '../utils/helpers.js';
-import { useFeedback } from '../composables/useFeedback.js';
-import { useAuthStore } from '../stores/auth.js'; // Importar el store de autenticación
+  import { onMounted } from 'vue'
+  import { useEmailStore } from '../stores/emailStore.js' // <-- Importamos el store
+  import { formatDate } from '../utils/helpers.js'
+  import { useFeedbackStore } from '../stores/feedbackStore.js'
 
-const emails = ref([]);
-const loading = ref(true);
-const error = ref(null);
-const router = useRouter();
-const { feedbackMessage, feedbackType, showFeedback } = useFeedback();
-const authStore = useAuthStore(); // Crear una instancia del store
+  // --- Instancias ---
+  const emailStore = useEmailStore()
+  const feedbackStore = useFeedbackStore()
 
-// --- FUNCIÓN handleEdit MODIFICADA ---
-const handleEdit = async (email) => {
-  try {
-    // Intento de bloqueo normal
-    await axios.post(`/api/emails-editable/${email.uuid}/lock`);
-    router.push({ name: 'email-editor', params: { uuid: email.uuid } });
-  } catch (err) {
-    if (err.response?.status === 409) {
-      // Si el correo está bloqueado (error 409), comprobamos si el usuario es admin
-      if (authStore.isAdmin) {
-        if (confirm(`Este correo está bloqueado. Como administrador, ¿quieres forzar el desbloqueo?`)) {
-          forceUnlockAndEdit(email);
-        }
-      } else {
-        // Si no es admin, muestra el mensaje de error normal
-        showFeedback(err.response.data.message, 'error');
-      }
-    } else {
-      showFeedback('Error al intentar editar. Intenta de nuevo más tarde.', 'error');
+  // --- Lógica del Componente ---
+  const handleEditClick = async email => {
+    const result = await emailStore.handleEdit(email)
+    if (!result.success && result.message) {
+      feedbackStore.show(result.message, 'error')
+    } else if (result.success && result.message) {
+      // Este caso es para el desbloqueo forzado exitoso
+      feedbackStore.show(result.message, 'success')
     }
   }
-};
 
-// --- NUEVA FUNCIÓN para forzar desbloqueo ---
-const forceUnlockAndEdit = async (email) => {
-  try {
-    // Llama a la nueva ruta del backend
-    await axios.post(`/api/emails-editable/${email.uuid}/force-unlock`);
-    showFeedback('Correo desbloqueado. Ahora puedes editar.', 'success');
-    // Inmediatamente intenta bloquearlo de nuevo para el admin y redirige
-    await handleEdit(email);
-  } catch (err) {
-    console.error('Error al forzar el desbloqueo:', err);
-    showFeedback('No se pudo forzar el desbloqueo.', 'error');
-  }
-};
-
-const fetchEmails = async () => {
-  loading.value = true;
-  error.value = null;
-  try {
-    const response = await axios.get('/api/emails-editable');
-    emails.value = response.data;
-  } catch (err) {
-    console.error('Error al cargar la lista de correos:', err);
-    error.value = 'Error al cargar la lista de correos. Asegúrate de que el backend está funcionando.';
-  } finally {
-    loading.value = false;
-  }
-};
-
-const deleteEmail = async (uuidToDelete) => {
-  if (!confirm('¿Estás seguro de que quieres eliminar este correo editable?')) {
-    return;
-  }
-  try {
-    await axios.delete(`/api/emails-editable/${uuidToDelete}`);
-    emails.value = emails.value.filter(email => email.uuid !== uuidToDelete);
-    showFeedback('Correo eliminado exitosamente.', 'success');
-  } catch (err) {
-    console.error('Error al eliminar correo:', err);
-    if (err.response?.status === 409) {
-      showFeedback(err.response.data.message, 'error');
-    } else {
-      showFeedback('Error al eliminar el correo. Intenta de nuevo.', 'error');
+  const deleteEmailClick = async uuidToDelete => {
+    if (!confirm('¿Estás seguro de que quieres eliminar este correo editable?')) {
+      return
     }
+    const result = await emailStore.deleteEmail(uuidToDelete)
+    const feedbackType = result.success ? 'success' : 'error'
+    feedbackStore.show(result.message, feedbackType)
   }
-};
 
-onMounted(fetchEmails);
+  // --- Ciclo de Vida ---
+  onMounted(() => {
+    emailStore.fetchEmails()
+  })
 </script>
 
-<style scoped>
-/* (El bloque de estilos CSS para EmailList.vue se mantiene igual) */
-</style>
+<style scoped></style>

@@ -3,376 +3,258 @@
     <div class="row">
       <div class="col-12 text-center mb-4">
         <h1>Editor de Contenido de Correo</h1>
-        <h2 v-if="templateName" class="h4 text-muted fw-normal">
-          Editando Template: <span class="fw-bold">{{ templateName }}</span>
+        <h2 v-if="editorStore.templateName" class="h4 text-muted fw-normal">
+          Editando Template:
+          <span class="fw-bold">{{ editorStore.templateName }}</span>
         </h2>
       </div>
       <div class="col-12">
-        <div v-if="loading" class="text-center text-secondary">Cargando correo...</div>
-        <div v-if="error" class="alert alert-danger text-center">{{ error }}</div>
+        <div v-if="editorStore.loading" class="text-center text-secondary">Cargando correo...</div>
+        <div v-if="editorStore.error" class="alert alert-danger text-center">{{ editorStore.error }}</div>
 
-        <div v-if="!loading && !error" class="row g-4">
+        <div v-if="!editorStore.loading && !editorStore.error" class="row g-4">
           <div class="col-md-4">
             <div class="card p-3 h-100">
               <div class="d-flex justify-content-between align-items-center mb-3">
                 <h3 class="card-title text-center mb-0">Contenido Editable</h3>
-                <span :class="['badge', autoSaveStatus.class]">{{ autoSaveStatus.text }}</span>
+                <span :class="['badge', editorStore.autoSaveStatus.class]">{{ editorStore.autoSaveStatus.text }}</span>
               </div>
               <div class="scroll">
                 <div v-for="(value, key) in visibleEditableContent" :key="key" class="mb-3" :data-editor-wrapper-key="key">
                   <label :for="key" class="form-label fw-bold">{{ capitalizeFirstLetter(key.replace(/_/g, ' ')) }}:</label>
-                  
                   <template v-if="key.includes('enlace_')">
-                    <input
-                      :id="key"
-                      :value="editableContent[key]"
-                      @input="editableContent[key] = $event.target.value; handleContentChange();"
-                      type="url"
-                      class="form-control"
-                      :class="{ 'is-invalid': validationErrors[key] }"
-                    />
+                    <input :id="key" :value="editorStore.editableContent[key]" @input="handleLinkInput(key, $event)" type="url" class="form-control" />
                   </template>
-                  
                   <template v-else>
-                    <TiptapEditor
-                      :modelValue="value"
-                      @update:modelValue="newValue => handleTiptapUpdate(key, newValue)"
-                      :class="{ 'is-invalid': validationErrors[key] }"
-                    />
+                    <TiptapEditor :modelValue="value" @update:modelValue="newValue => handleTiptapUpdate(key, newValue)" />
                   </template>
-                  
-                  <div v-if="validationErrors[key]" class="invalid-feedback d-block">{{ validationErrors[key] }}</div>
                 </div>
               </div>
               <div class="d-flex flex-wrap justify-content-center gap-2 mt-3">
                 <router-link to="/lista-correos" class="btn btn-danger">Cancelar</router-link>
-                <button @click="manualSaveChanges" :disabled="isSaving" class="btn btn-primary">
-                  {{ isSaving ? 'Guardando...' : 'Guardar Cambios' }}
+                <button @click="manualSaveChanges" :disabled="editorStore.isSaving" class="btn btn-primary">
+                  {{ editorStore.isSaving ? 'Guardando...' : 'Guardar Cambios' }}
                 </button>
-                <button @click="copyHtmlToClipboard" class="btn btn-success">
-                  Copiar HTML Final
-                </button>
+                <button @click="copyHtmlToClipboard" class="btn btn-success">Copiar HTML Final</button>
               </div>
             </div>
           </div>
-
           <div class="col-md-8">
             <div class="card p-3 h-100">
-              <h3 v-if="templateName" class="card-title text-center mb-3">Previsualización del Correo - <span class="fw-bold">{{ templateName }}</span></h3>
-              <iframe
-                ref="previewIframe"
-                @load="handlePreviewLoad"
-                :style="{ width: previewWidth, height: '2100px', border: '1px solid #ccc', 'background-color': '#f6f6f6' }"
-                class="w-100 border rounded shadow-sm"
-              ></iframe>
+              <h3 v-if="editorStore.templateName" class="card-title text-center mb-3">
+                Previsualización del Correo -
+                <span class="fw-bold">{{ editorStore.templateName }}</span>
+              </h3>
+              <iframe ref="previewIframe" @load="handlePreviewLoad" :style="{ height: '2100px', border: '1px solid #ccc', 'background-color': '#f6f6f6' }" class="w-100 border rounded shadow-sm"></iframe>
             </div>
           </div>
         </div>
       </div>
     </div>
-    <div v-if="feedbackMessage" :class="['feedback-message', feedbackType]">
-      {{ feedbackMessage }}
-    </div>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted, nextTick, onBeforeUnmount, reactive, computed } from 'vue';
-import axios from '../services/api.js';
-import { useRoute, useRouter } from 'vue-router';
-import TiptapEditor from '../components/TiptapEditor.vue';
-import { capitalizeFirstLetter, isValidUrl, getPlainTextFromHtml } from '../utils/helpers.js';
-import { useFeedback } from '../composables/useFeedback.js';
-import { useAuthStore } from '../stores/auth.js'; // 1. Importar el store de autenticación
+  import { onMounted, onBeforeUnmount, ref, computed, nextTick } from 'vue'
+  import { useRoute, useRouter } from 'vue-router'
+  import { useEditorStore } from '../stores/editorStore.js'
+  import { useAuthStore } from '../stores/auth.js'
+  import { useFeedbackStore } from '../stores/feedbackStore.js'
+  import TiptapEditor from '../components/TiptapEditor.vue'
+  import { capitalizeFirstLetter, getPlainTextFromHtml, isValidUrl } from '../utils/helpers.js'
 
-const router = useRouter();
-const route = useRoute();
-const uuid = ref(route.params.uuid);
-const { feedbackMessage, feedbackType, showFeedback } = useFeedback();
-const authStore = useAuthStore(); // 2. Crear una instancia del store
+  // --- Instancias ---
+  const route = useRoute()
+  const router = useRouter()
+  const editorStore = useEditorStore()
+  const authStore = useAuthStore()
+  const feedbackStore = useFeedbackStore()
+  const uuid = route.params.uuid
 
-// --- Estados del componente ---
-const loading = ref(true);
-const error = ref(null);
-const templateHtml = ref('');
-const editableContent = ref({});
-const validationErrors = ref({});
-const isLocked = ref(false);
-const templateName = ref('');
-const previewIframe = ref(null);
-const previewWidth = ref('772px');
-let isPreviewReady = false;
-let debouncePreviewTimer = null;
+  // --- Refs para el DOM y Timers ---
+  const previewIframe = ref(null)
+  let isPreviewReady = false
+  let debouncePreviewTimer = null
+  let autoSaveTimeoutId = null
 
-// --- Lógica de Autoguardado ---
-const isSaving = ref(false);
-const hasUnsavedChanges = ref(false);
-const autoSaveInterval = 10000;
-let autoSaveTimeoutId = null;
-const autoSaveStatus = reactive({
-  text: 'Listo',
-  class: 'bg-secondary'
-});
+  // --- Lógica del Componente ---
+  const visibleEditableContent = computed(() => {
+    const filtered = {}
+    for (const key in editorStore.editableContent) {
+      if (!key.startsWith('image_')) {
+        filtered[key] = editorStore.editableContent[key]
+      }
+    }
+    return filtered
+  })
 
-const scheduleNextAutoSave = () => {
-  clearTimeout(autoSaveTimeoutId);
-  autoSaveTimeoutId = setTimeout(autoSaveChanges, autoSaveInterval);
-};
-
-const autoSaveChanges = async () => {
-  if (!hasUnsavedChanges.value || isSaving.value) {
-    scheduleNextAutoSave();
-    return;
+  const handleLinkInput = (key, event) => {
+    editorStore.editableContent[key] = event.target.value
+    handleContentChange()
   }
-  const isValid = validateContent(true);
-  if (!isValid) {
-    autoSaveStatus.text = 'Error de validación';
-    autoSaveStatus.class = 'bg-danger';
-    scheduleNextAutoSave();
-    return;
+
+  const handleTiptapUpdate = (key, newValue) => {
+    editorStore.editableContent[key] = newValue
+    handleContentChange()
   }
-  isSaving.value = true;
-  autoSaveStatus.text = 'Guardando...';
-  autoSaveStatus.class = 'bg-info';
-  try {
-    await axios.put(`/api/emails-editable/${uuid.value}`, {
-      updated_content: editableContent.value
-    });
-    autoSaveStatus.text = 'Cambios guardados';
-    autoSaveStatus.class = 'bg-success';
-    hasUnsavedChanges.value = false;
-    window.dispatchEvent(new Event('mousemove'));
-  } catch (err) {
-    console.error('Error en autoguardado:', err);
-    if (err.response?.status === 404) {
-      autoSaveStatus.text = 'Correo eliminado';
-      autoSaveStatus.class = 'bg-danger';
-      error.value = 'Este correo fue eliminado. No se pueden guardar más cambios.';
-      clearTimeout(autoSaveTimeoutId);
-      return;
+
+  const manualSaveChanges = async () => {
+    clearTimeout(autoSaveTimeoutId)
+    const wasSuccessful = await editorStore.saveEmail(uuid)
+
+    if (wasSuccessful) {
+      // Usa la acción del store:
+      feedbackStore.show('Cambios guardados exitosamente!', 'success')
     } else {
-      autoSaveStatus.text = 'Error al guardar';
-      autoSaveStatus.class = 'bg-danger';
+      feedbackStore.show('No se pudieron guardar los cambios.', 'error')
     }
-  } finally {
-    isSaving.value = false;
-    setTimeout(() => {
-      if (!hasUnsavedChanges.value) {
-        autoSaveStatus.text = 'Listo';
-        autoSaveStatus.class = 'bg-secondary';
-      }
-    }, 2000);
-    scheduleNextAutoSave();
+
+    scheduleNextAutoSave()
   }
-};
 
-const visibleEditableContent = computed(() => {
-  const filteredContent = {};
-  for (const key in editableContent.value) {
-    if (!key.startsWith('image_')) {
-      filteredContent[key] = editableContent.value[key];
-    }
-  }
-  return filteredContent;
-});
-
-const updateEditableContent = (key, newValue) => {
-  if (editableContent.value[key] !== newValue) {
-    editableContent.value[key] = newValue;
-    handleContentChange();
-  }
-};
-
-const focusEditor = (key) => {
-  if (!key) return;
-  const wrapper = document.querySelector(`[data-editor-wrapper-key="${key}"]`);
-  if (wrapper) {
-    const inputElement = wrapper.querySelector('input, textarea, .ProseMirror');
-    if (inputElement) {
-      inputElement.focus();
-      wrapper.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    }
-  }
-};
-
-const handlePreviewLoad = () => {
-  isPreviewReady = true;
-  updatePreviewContent();
-  const iframeDoc = previewIframe.value.contentWindow.document;
-  if (iframeDoc) {
-    iframeDoc.addEventListener('dblclick', (event) => {
-      let target = event.target;
-      while (target && target !== iframeDoc.body) {
-        if (target.dataset && target.dataset.editorKey) {
-          window.parent.focusEditor(target.dataset.editorKey);
-          break;
-        }
-        target = target.parentElement;
-      }
-    });
-
-    // 3. Añadimos el listener de clic SOLO si el usuario es admin
-    if (authStore.isAdmin) {
-      iframeDoc.addEventListener('click', (event) => {
-        const target = event.target;
-        if (target.tagName === 'IMG' && target.dataset.editorKey) {
-          event.preventDefault();
-          const key = target.dataset.editorKey;
-          const currentUrl = editableContent.value[key] || '';
-          const newUrl = prompt("Introduce la nueva URL de la imagen:", currentUrl);
-          if (newUrl !== null && newUrl !== currentUrl) {
-            window.parent.updateEditableContent(key, newUrl);
+  const handlePreviewLoad = () => {
+    isPreviewReady = true
+    updatePreviewContent()
+    const iframeDoc = previewIframe.value.contentWindow.document
+    if (iframeDoc) {
+      iframeDoc.addEventListener('dblclick', event => {
+        let target = event.target
+        while (target && target !== iframeDoc.body) {
+          if (target.dataset && target.dataset.editorKey) {
+            focusEditor(target.dataset.editorKey)
+            break
           }
+          target = target.parentElement
         }
-      });
-    }
-  }
-};
+      })
 
-const updatePreviewContent = () => {
-  if (!isPreviewReady || !previewIframe.value) return;
-  const finalHtml = generateFinalHtml();
-  previewIframe.value.contentWindow.document.body.innerHTML = `
-  <div style="max-width: 772px; margin: 30px auto; background-color: #ffffff; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
-    ${finalHtml}
-  </div>
-  `;
-};
-
-const debouncedUpdatePreview = () => {
-  clearTimeout(debouncePreviewTimer);
-  debouncePreviewTimer = setTimeout(updatePreviewContent, 200);
-};
-
-const generateFinalHtml = (forClipboard = false) => {
-  let finalHtml = templateHtml.value;
-  let imgIndex = 0;
-  finalHtml = finalHtml.replace(/<img[^>]*>/g, (match) => {
-    const key = `image_${imgIndex}`;
-    const newSrc = editableContent.value[key] ? `src="${encodeURI(editableContent.value[key])}"` : 'src=""';
-    let newTag = match.replace(/src="[^"]*"/, newSrc);
-    // 4. Añadimos el data-key (y por tanto la interactividad) SOLO si es admin
-    if (!forClipboard && authStore.isAdmin) {
-      newTag = newTag.replace('<img', `<img data-editor-key="${key}"`);
-    }
-    imgIndex++;
-    return newTag;
-  });
-  for (const key in editableContent.value) {
-    if (!key.startsWith('image_')) {
-      const rawContent = editableContent.value[key] || '';
-      const placeholderRegex = new RegExp(`{{\\s*${key}\\s*}}`, 'g');
-      if (key.includes('enlace_')) {
-        finalHtml = finalHtml.replace(placeholderRegex, encodeURI(rawContent));
-      } else {
-        const plainText = getPlainTextFromHtml(rawContent);
-        const styledHtml = rawContent.replace(/<p/g, '<p style="margin: 0;"');
-        finalHtml = finalHtml.replace(new RegExp(`(alt="[^"]*){{\\s*${key}\\s*}}([^"]*")`, 'g'), `$1${plainText}$2`);
-        const replacement = forClipboard ? styledHtml : `<span data-editor-key="${key}">${styledHtml}</span>`;
-        finalHtml = finalHtml.replace(placeholderRegex, replacement);
+      if (authStore.isAdmin) {
+        iframeDoc.addEventListener('click', event => {
+          const target = event.target
+          if (target.tagName === 'IMG' && target.dataset.editorKey) {
+            event.preventDefault()
+            const key = target.dataset.editorKey
+            // CORRECCIÓN: Leer el valor actual desde el store
+            const currentUrl = editorStore.editableContent[key] || ''
+            const newUrl = prompt('Introduce la nueva URL de la imagen:', currentUrl)
+            if (newUrl !== null && newUrl !== currentUrl) {
+              // CORRECCIÓN: Actualizar el valor en el store
+              editorStore.editableContent[key] = newUrl
+              handleContentChange()
+            }
+          }
+        })
       }
     }
   }
-  return finalHtml;
-};
 
-const handleContentChange = () => {
-  if (!hasUnsavedChanges.value) {
-    autoSaveStatus.text = 'Cambios sin guardar';
-    autoSaveStatus.class = 'bg-warning';
-  }
-  hasUnsavedChanges.value = true;
-  debouncedUpdatePreview();
-};
-
-const handleTiptapUpdate = (key, newValue) => {
-  editableContent.value[key] = newValue;
-  handleContentChange();
-};
-
-const manualSaveChanges = async () => {
-    clearTimeout(autoSaveTimeoutId);
-    await autoSaveChanges();
-    if (autoSaveStatus.class === 'bg-success') {
-        showFeedback('Cambios guardados exitosamente!', 'success');
-    }
-};
-
-const validateContent = (silent = false) => {
-  validationErrors.value = {};
-  let hasErrors = false;
-  for (const key in editableContent.value) {
-    const value = editableContent.value[key];
-    if (key.startsWith('image_') || key.includes('enlace_')) {
-      if (!value || !isValidUrl(value)) {
-        if (!silent) validationErrors.value[key] = 'Introduce una URL válida.';
-        hasErrors = true;
-      }
-    } else {
-      if (!getPlainTextFromHtml(value).trim()) {
-        if (!silent) validationErrors.value[key] = 'El contenido no puede estar vacío.';
-        hasErrors = true;
+  const focusEditor = key => {
+    if (!key) return
+    const wrapper = document.querySelector(`[data-editor-wrapper-key="${key}"]`)
+    if (wrapper) {
+      const inputElement = wrapper.querySelector('input, textarea, .ProseMirror')
+      if (inputElement) {
+        inputElement.focus()
+        wrapper.scrollIntoView({ behavior: 'smooth', block: 'center' })
       }
     }
   }
-  return !hasErrors;
-};
 
-const copyHtmlToClipboard = () => {
-  const textToCopy = generateFinalHtml(true);
-  navigator.clipboard.writeText(textToCopy)
-    .then(() => showFeedback('HTML copiado al portapapeles!', 'success'))
-    .catch(err => showFeedback('Error al copiar HTML.', 'error'));
-};
+  const updatePreviewContent = () => {
+    if (!isPreviewReady || !previewIframe.value) return
+    const finalHtml = generateFinalHtml()
+    previewIframe.value.contentWindow.document.body.innerHTML = `
+      <div style="max-width: 772px; margin: 30px auto; background-color: #ffffff; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+        ${finalHtml}
+      </div>
+      `
+  }
 
-const acquireLock = async () => {
-    try {
-        await axios.post(`/api/emails-editable/${uuid.value}/lock`);
-        isLocked.value = true;
-    } catch (err) {
-        if (err.response?.status === 409) {
-            const lockedByUsername = err.response.data.message.split('por ')[1].split('.')[0];
-            showFeedback(`Este correo está siendo editado por ${lockedByUsername}.`, 'error');
-            router.push('/lista-correos');
+  const debouncedUpdatePreview = () => {
+    clearTimeout(debouncePreviewTimer)
+    debouncePreviewTimer = setTimeout(updatePreviewContent, 200)
+  }
+
+  const handleContentChange = () => {
+    if (!editorStore.hasUnsavedChanges) {
+      // CORRECCIÓN: Eliminar el 'editorStore' duplicado
+      editorStore.autoSaveStatus.text = 'Cambios sin guardar'
+      editorStore.autoSaveStatus.class = 'bg-warning'
+    }
+    editorStore.hasUnsavedChanges = true
+    debouncedUpdatePreview()
+  }
+
+  const scheduleNextAutoSave = () => {
+    clearTimeout(autoSaveTimeoutId)
+    autoSaveTimeoutId = setTimeout(async () => {
+      if (editorStore.hasUnsavedChanges) {
+        await editorStore.saveEmail(uuid)
+      }
+      scheduleNextAutoSave()
+    }, 10000) // 10 segundos
+  }
+
+  const copyHtmlToClipboard = () => {
+    const textToCopy = generateFinalHtml(true)
+    navigator.clipboard
+      .writeText(textToCopy)
+      .then(() => showFeedback.show('HTML copiado al portapapeles!', 'success'))
+      .catch(() => showFeedback.show('Error al copiar HTML.', 'error'))
+  }
+
+  const generateFinalHtml = (forClipboard = false) => {
+    // CORRECCIÓN: Leer el templateHtml y editableContent desde el store
+    let finalHtml = editorStore.templateHtml
+    let imgIndex = 0
+    finalHtml = finalHtml.replace(/<img[^>]*>/g, match => {
+      const key = `image_${imgIndex}`
+      const newSrc = editorStore.editableContent[key] ? `src="${encodeURI(editorStore.editableContent[key])}"` : 'src=""'
+      let newTag = match.replace(/src="[^"]*"/, newSrc)
+      if (!forClipboard && authStore.isAdmin) {
+        newTag = newTag.replace('<img', `<img data-editor-key="${key}"`)
+      }
+      imgIndex++
+      return newTag
+    })
+    for (const key in editorStore.editableContent) {
+      if (!key.startsWith('image_')) {
+        const rawContent = editorStore.editableContent[key] || ''
+        const placeholderRegex = new RegExp(`{{\\s*${key}\\s*}}`, 'g')
+        if (key.includes('enlace_')) {
+          finalHtml = finalHtml.replace(placeholderRegex, encodeURI(rawContent))
         } else {
-            error.value = 'Error al adquirir el bloqueo. No se puede editar.';
+          const plainText = getPlainTextFromHtml(rawContent)
+          const styledHtml = rawContent.replace(/<p/g, '<p style="margin: 0;"')
+          finalHtml = finalHtml.replace(new RegExp(`(alt="[^"]*){{\\s*${key}\\s*}}([^"]*")`, 'g'), `$1${plainText}$2`)
+          const replacement = forClipboard ? styledHtml : `<span data-editor-key="${key}">${styledHtml}</span>`
+          finalHtml = finalHtml.replace(placeholderRegex, replacement)
         }
-        throw err;
+      }
     }
-};
-
-const releaseLock = async () => {
-    try {
-        await axios.post(`/api/emails-editable/${uuid.value}/unlock`);
-        isLocked.value = false;
-    } catch (err) {
-        console.error('Error al liberar el bloqueo:', err);
-    }
-};
-
-onMounted(async () => {
-  window.focusEditor = focusEditor;
-  window.updateEditableContent = updateEditableContent;
-  if (!uuid.value) {
-    error.value = 'UUID de correo no proporcionado.';
-    loading.value = false;
-    return;
+    return finalHtml
   }
-  try {
-    await acquireLock();
-    const emailResponse = await axios.get(`/api/emails-editable/${uuid.value}`);
-    const { template_id, content_json, template_name } = emailResponse.data;
-    const templateResponse = await axios.get(`/api/templates/${template_id}`);
-    templateHtml.value = templateResponse.data.html_content;
-    editableContent.value = content_json;
-    templateName.value = template_name;
+
+  // --- Ciclo de Vida ---
+  onMounted(async () => {
+    editorStore.resetEditorState()
+    const result = await editorStore.loadAndLockEmail(uuid)
+
+    if (!result.success) {
+      if (result.isLockedError) {
+        showFeedback.show(editorStore.error, 'error')
+        router.push('/lista-correos')
+      }
+      return
+    }
+
     nextTick(() => {
-      // 5. Inyectamos los estilos condicionalmente
-      const isAdminStyles = authStore.isAdmin ? `
+      const isAdminStyles = authStore.isAdmin
+        ? `
         img[data-editor-key] { cursor: pointer; border: 2px dashed transparent; transition: border-color 0.2s; }
         img[data-editor-key]:hover { border-color: #0d6efd; }
-      ` : '';
-
+      `
+        : ''
       const initialHtml = `
         <!DOCTYPE html>
         <html>
@@ -385,38 +267,26 @@ onMounted(async () => {
           </head>
           <body></body>
         </html>
-      `;
-      previewIframe.value.srcdoc = initialHtml;
-      scheduleNextAutoSave();
-    });
-  } catch (err) {
-    if (err.response?.status !== 409) {
-      error.value = `Error al cargar. Asegúrate de que el backend está funcionando.`;
+      `
+      previewIframe.value.srcdoc = initialHtml
+      scheduleNextAutoSave()
+    })
+  })
+
+  onBeforeUnmount(async () => {
+    clearTimeout(autoSaveTimeoutId)
+    if (editorStore.hasUnsavedChanges) {
+      await editorStore.saveEmail(uuid)
     }
-  } finally {
-    loading.value = false;
-  }
-});
-
-onBeforeUnmount(async () => {
-  delete window.focusEditor;
-  delete window.updateEditableContent;
-  clearTimeout(autoSaveTimeoutId);
-  clearTimeout(debouncePreviewTimer);
-  if (hasUnsavedChanges.value) {
-    await autoSaveChanges();
-  }
-  if (isLocked.value) {
-    await releaseLock();
-  }
-});
-
+    await editorStore.unlockEmail(uuid)
+    editorStore.resetEditorState()
+  })
 </script>
 
 <style scoped>
-.scroll {
-  max-height: 2100px;
-  overflow-y: auto;
-  padding-right: 10px;
-}
+  .scroll {
+    max-height: 2100px;
+    overflow-y: auto;
+    padding-right: 10px;
+  }
 </style>
