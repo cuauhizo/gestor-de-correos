@@ -69,10 +69,12 @@
   import { ref, onMounted } from 'vue'
   import { useTemplateStore } from '../stores/templateStore.js'
   import { useFeedbackStore } from '../stores/feedbackStore.js'
+  import { useModalStore } from '../stores/modalStore.js'
 
   // --- Instancias ---
   const templateStore = useTemplateStore()
   const feedbackStore = useFeedbackStore()
+  const modalStore = useModalStore()
 
   // --- Estado Local del Componente (solo para el formulario) ---
   const currentTemplate = ref({
@@ -130,14 +132,15 @@
     }
   }
 
-  const deleteTemplateConfirmed = async idToDelete => {
-    if (!confirm('¿Estás seguro de que quieres eliminar este template?')) return
-    try {
-      const response = await templateStore.deleteTemplate(idToDelete)
-      feedbackStore.show(response.message, 'success')
-    } catch (error) {
-      feedbackStore.show(error.message || 'Error al eliminar el template.', 'error')
-    }
+  const deleteTemplateConfirmed = idToDelete => {
+    modalStore.show({
+      title: 'Eliminar Template',
+      message: '¿Estás seguro de que quieres eliminar este template? Los correos que lo usen podrían dejar de funcionar correctamente.',
+      onConfirm: async () => {
+        const result = await templateStore.deleteTemplate(idToDelete)
+        feedbackStore.show(result.message, result.success ? 'success' : 'error')
+      },
+    })
   }
 
   const cancelEdit = () => {

@@ -40,10 +40,12 @@
   import { useEmailStore } from '../stores/emailStore.js' // <-- Importamos el store
   import { formatDate } from '../utils/helpers.js'
   import { useFeedbackStore } from '../stores/feedbackStore.js'
+  import { useModalStore } from '../stores/modalStore.js'
 
   // --- Instancias ---
   const emailStore = useEmailStore()
   const feedbackStore = useFeedbackStore()
+  const modalStore = useModalStore()
 
   // --- Lógica del Componente ---
   const handleEditClick = async email => {
@@ -56,13 +58,15 @@
     }
   }
 
-  const deleteEmailClick = async uuidToDelete => {
-    if (!confirm('¿Estás seguro de que quieres eliminar este correo editable?')) {
-      return
-    }
-    const result = await emailStore.deleteEmail(uuidToDelete)
-    const feedbackType = result.success ? 'success' : 'error'
-    feedbackStore.show(result.message, feedbackType)
+  const deleteEmailClick = uuidToDelete => {
+    modalStore.show({
+      title: 'Eliminar Correo',
+      message: '¿Estás seguro de que quieres eliminar este correo editable?',
+      onConfirm: async () => {
+        const result = await emailStore.deleteEmail(uuidToDelete)
+        feedbackStore.show(result.message, result.success ? 'success' : 'error')
+      },
+    })
   }
 
   // --- Ciclo de Vida ---

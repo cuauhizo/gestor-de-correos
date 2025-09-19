@@ -4,7 +4,9 @@
   import { useRouter } from 'vue-router'
   import { useFeedbackStore } from './stores/feedbackStore.js'
   import SessionWarningModal from './components/SessionWarningModal.vue' // 1. Importa el nuevo componente
+  import ConfirmationModal from './components/ConfirmationModal.vue'
 
+  // --- Instancias ---
   const authStore = useAuthStore()
   const feedbackStore = useFeedbackStore()
   const router = useRouter()
@@ -99,6 +101,9 @@
               <li class="nav-item" v-if="authStore.isAdmin">
                 <router-link to="/gestionar-templates" class="nav-link" active-class="active">Gestionar Templates</router-link>
               </li>
+              <li class="nav-item" v-if="authStore.isAdmin">
+                <router-link to="/gestionar-usuarios" class="nav-link" active-class="active">Gestionar Usuarios</router-link>
+              </li>
             </template>
           </ul>
           <ul class="navbar-nav ms-auto">
@@ -125,7 +130,7 @@
       {{ feedbackStore.message }}
     </div>
   </div>
-
+  <ConfirmationModal />
   <SessionWarningModal :show="showWarningModal" @close="showWarningModal = false" @extend="handleExtendSession" @logout="handleLogout" />
 </template>
 
