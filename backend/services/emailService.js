@@ -1,6 +1,7 @@
 // backend/services/emailService.js
 const pool = require('../config/db')
 const { v4: uuidv4 } = require('uuid')
+const { parseTemplateHTML } = require('../utils/templateParser')
 
 exports.getAllEmails = async () => {
   const [rows] = await pool.query(`
@@ -23,9 +24,36 @@ exports.getEmailByUuid = async uuid => {
   return rows[0]
 }
 
-exports.createEmail = async (template_id, initial_content, user_id) => {
+exports.old_createEmail = async (template_id, initial_content, user_id) => {
   const uuid = uuidv4()
   await pool.execute('INSERT INTO emails_editable (uuid, template_id, content_json, user_id, is_locked, locked_by_user_id) VALUES (?, ?, ?, ?, 1, ?)', [uuid, template_id, JSON.stringify(initial_content), user_id, user_id])
+  return uuid
+}
+
+exports.createEmail = async (template_id, initial_content, user_id) => {
+  const uuid = uuidv4()
+
+  // 1. Obtenemos el HTML del template maestro
+  const [templateRows] = await pool.execute('SELECT html_content FROM templates WHERE id = ?', [template_id])
+  if (templateRows.length === 0) {
+    throw new Error('Template no encontrado')
+  }
+  const templateHtml = templateRows[0].html_content
+
+  // 2. Parseamos el HTML para obtener la estructura de secciones
+  const sections = parseTemplateHTML(templateHtml)
+
+  // 3. (Opcional pero recomendado) Rellenamos con el contenido inicial que viene del frontend
+  if (initial_content && sections.length > 0) {
+    // Este es un ejemplo simple, se podría hacer más robusto
+    // Asumimos que el primer `initial_content` va en la primera sección
+    Object.assign(sections[0].content, initial_content)
+  }
+
+  // 4. Creamos el objeto final para el JSON
+  const finalContentObject = { sections }
+
+  await pool.execute('INSERT INTO emails_editable (uuid, template_id, content_json, user_id) VALUES (?, ?, ?, ?)', [uuid, template_id, JSON.stringify(finalContentObject), user_id])
   return uuid
 }
 

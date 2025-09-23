@@ -23,6 +23,8 @@ const templateValidationRules = [
 // --- Definición de Rutas ---
 router.get('/', templateController.getAllTemplates) // Pública
 
+router.get('/library/:id', protect, templateController.getTemplateLibrary)
+
 router.get('/:id', protect, templateController.getTemplateById) // Protegida para usuarios logueados
 
 router.post('/', protect, admin, templateValidationRules, templateController.createTemplate) // Solo Admin

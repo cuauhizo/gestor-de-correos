@@ -2,17 +2,18 @@
 import { defineStore } from 'pinia'
 import { ref, reactive } from 'vue'
 import axios from '../services/api'
+import { v4 as uuidv4 } from 'uuid'
 
 export const useEditorStore = defineStore('editor', () => {
   // --- State ---
   const loading = ref(true)
   const error = ref(null)
-  const templateHtml = ref('')
-  const editableContent = ref({})
   const templateName = ref('')
+  const editableContent = ref({ sections: [] })
   const isLocked = ref(false)
   const isSaving = ref(false)
   const hasUnsavedChanges = ref(false)
+  const sectionLibrary = ref([])
 
   const autoSaveStatus = reactive({
     text: 'Listo',
@@ -20,31 +21,27 @@ export const useEditorStore = defineStore('editor', () => {
   })
 
   // --- Actions ---
-
-  // Carga el correo y su template, y lo bloquea para edición.
   async function loadAndLockEmail(uuid) {
     loading.value = true
     error.value = null
     try {
-      // 1. Bloquear el correo
       await axios.post(`/api/emails-editable/${uuid}/lock`)
       isLocked.value = true
 
-      // 2. Obtener los datos del correo
       const emailResponse = await axios.get(`/api/emails-editable/${uuid}`)
       const { template_id, content_json, template_name } = emailResponse.data
-      editableContent.value = content_json
-      templateName.value = template_name
 
-      // 3. Obtener el HTML del template base
-      const templateResponse = await axios.get(`/api/templates/${template_id}`)
-      templateHtml.value = templateResponse.data.html_content
+      templateName.value = template_name
+      // CORRECCIÓN: Simplemente asignamos el content_json que ya viene con la estructura de secciones correcta.
+      editableContent.value = content_json
+
+      // Cargamos la biblioteca de secciones basada en el template_id
+      await fetchSectionLibrary(template_id)
 
       return { success: true }
     } catch (err) {
       error.value = err.response?.data?.message || 'Error al cargar el correo.'
       if (err.response?.status === 409) {
-        // Si está bloqueado, el componente se encargará de redirigir
         return { success: false, isLockedError: true }
       }
       return { success: false }
@@ -53,7 +50,6 @@ export const useEditorStore = defineStore('editor', () => {
     }
   }
 
-  // Guarda el contenido del correo (usado para auto-guardado y guardado manual)
   async function saveEmail(uuid) {
     if (isSaving.value) return false
     isSaving.value = true
@@ -83,7 +79,6 @@ export const useEditorStore = defineStore('editor', () => {
     }
   }
 
-  // Desbloquea el correo (se llama al salir de la página)
   async function unlockEmail(uuid) {
     if (!isLocked.value) return
     try {
@@ -94,30 +89,51 @@ export const useEditorStore = defineStore('editor', () => {
     }
   }
 
-  // Limpia el estado del store cuando se sale del editor
+  // CORRECCIÓN: Asegúrate de que el reset también use la nueva estructura.
   function resetEditorState() {
     loading.value = true
     error.value = null
-    templateHtml.value = ''
-    editableContent.value = {}
     templateName.value = ''
+    editableContent.value = { sections: [] }
     isLocked.value = false
     isSaving.value = false
     hasUnsavedChanges.value = false
+    sectionLibrary.value = []
     autoSaveStatus.text = 'Listo'
     autoSaveStatus.class = 'bg-secondary'
+  }
+
+  async function fetchSectionLibrary(templateId) {
+    try {
+      const response = await axios.get(`/api/templates/library/${templateId}`)
+      sectionLibrary.value = response.data
+    } catch (err) {
+      console.error('No se pudo cargar la biblioteca de secciones', err)
+      sectionLibrary.value = []
+    }
+  }
+
+  function addSection(sectionTemplate) {
+    const newSection = {
+      ...sectionTemplate,
+      id: uuidv4(), // Le damos un nuevo ID único
+      // Aseguramos que el contenido esté bien formado
+      content: { ...sectionTemplate.content },
+    }
+    editableContent.value.sections.push(newSection)
   }
 
   return {
     loading,
     error,
-    templateHtml,
     editableContent,
     templateName,
     isLocked,
     isSaving,
     hasUnsavedChanges,
     autoSaveStatus,
+    sectionLibrary,
+    addSection,
     loadAndLockEmail,
     saveEmail,
     unlockEmail,

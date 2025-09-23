@@ -20,15 +20,20 @@
                 <span :class="['badge', editorStore.autoSaveStatus.class]">{{ editorStore.autoSaveStatus.text }}</span>
               </div>
               <div class="scroll">
-                <div v-for="(value, key) in visibleEditableContent" :key="key" class="mb-3" :data-editor-wrapper-key="key">
-                  <label :for="key" class="form-label fw-bold">{{ capitalizeFirstLetter(key.replace(/_/g, ' ')) }}:</label>
-                  <template v-if="key.includes('enlace_')">
-                    <input :id="key" :value="editorStore.editableContent[key]" @input="handleLinkInput(key, $event)" type="url" class="form-control" />
-                  </template>
-                  <template v-else>
-                    <TiptapEditor :modelValue="value" @update:modelValue="newValue => handleTiptapUpdate(key, newValue)" />
-                  </template>
+                <div class="text-center mt-3">
+                  <button @click="isAddModalVisible = true" class="btn btn-outline-primary">➕ Añadir Sección</button>
+                  <AddSectionModal :is-visible="isAddModalVisible" @close="isAddModalVisible = false" />
                 </div>
+                <SectionEditor
+                  v-for="(section, index) in editorStore.editableContent.sections"
+                  :key="section.id"
+                  :section="section"
+                  :is-first="index === 0"
+                  :is-last="index === editorStore.editableContent.sections.length - 1"
+                  @update:content="newContent => updateSectionContent(section.id, newContent)"
+                  @delete="deleteSection(section.id)"
+                  @move-up="moveSection(section.id, -1)"
+                  @move-down="moveSection(section.id, 1)" />
               </div>
               <div class="d-flex flex-wrap justify-content-center gap-2 mt-3">
                 <router-link to="/lista-correos" class="btn btn-danger">Cancelar</router-link>
@@ -61,7 +66,9 @@
   import { useAuthStore } from '../stores/auth.js'
   import { useFeedbackStore } from '../stores/feedbackStore.js'
   import TiptapEditor from '../components/TiptapEditor.vue'
+  import SectionEditor from '../components/SectionEditor.vue'
   import { capitalizeFirstLetter, getPlainTextFromHtml, isValidUrl } from '../utils/helpers.js'
+  import AddSectionModal from '../components/AddSectionModal.vue'
 
   // --- Instancias ---
   const route = useRoute()
@@ -70,6 +77,7 @@
   const authStore = useAuthStore()
   const feedbackStore = useFeedbackStore()
   const uuid = route.params.uuid
+  const isAddModalVisible = ref(false)
 
   // --- Refs para el DOM y Timers ---
   const previewIframe = ref(null)
@@ -80,9 +88,12 @@
   // --- Lógica del Componente ---
   const visibleEditableContent = computed(() => {
     const filtered = {}
-    for (const key in editorStore.editableContent) {
+    // Iteramos sobre los placeholders VÁLIDOS del template actual
+    for (const key of editorStore.currentPlaceholders) {
+      // Nos aseguramos de no crear campos para las imágenes (esas se editan en el preview)
       if (!key.startsWith('image_')) {
-        filtered[key] = editorStore.editableContent[key]
+        // Asignamos el valor que existe en el content_json, o un string vacío si es un campo nuevo
+        filtered[key] = editorStore.editableContent[key] || ''
       }
     }
     return filtered
@@ -203,7 +214,7 @@
       .catch(() => showFeedback.show('Error al copiar HTML.', 'error'))
   }
 
-  const generateFinalHtml = (forClipboard = false) => {
+  const old_generateFinalHtml = (forClipboard = false) => {
     // CORRECCIÓN: Leer el templateHtml y editableContent desde el store
     let finalHtml = editorStore.templateHtml
     let imgIndex = 0
@@ -234,6 +245,83 @@
     }
     return finalHtml
   }
+
+  const generateFinalHtml = (forClipboard = false) => {
+    if (!editorStore.editableContent || !editorStore.editableContent.sections) {
+      return '' // Devuelve vacío si no hay secciones
+    }
+
+    // 1. Iteramos sobre cada sección en el orden actual
+    const finalHtmlSections = editorStore.editableContent.sections.map(section => {
+      // Partimos del HTML crudo de esta sección específica
+      let sectionHtml = section.html || ''
+
+      // 2. Rellenamos los placeholders con el contenido de la sección
+      for (const key in section.content) {
+        const rawContent = section.content[key] || ''
+
+        if (key.startsWith('image_')) {
+          // Lógica para reemplazar la fuente de la imagen
+          const newSrc = rawContent ? `src="${encodeURI(rawContent)}"` : 'src=""'
+          // Buscamos una sola etiqueta de imagen en este bloque y reemplazamos su src
+          sectionHtml = sectionHtml.replace(/src="[^"]*"/, newSrc)
+        } else if (key.includes('enlace_')) {
+          // Lógica para enlaces
+          const placeholderRegex = new RegExp(`{{\\s*${key}\\s*}}`, 'g')
+          sectionHtml = sectionHtml.replace(placeholderRegex, encodeURI(rawContent))
+        } else {
+          // Lógica para texto normal y Tiptap
+          const placeholderRegex = new RegExp(`{{\\s*${key}\\s*}}`, 'g')
+          const plainText = getPlainTextFromHtml(rawContent)
+          const styledHtml = rawContent.replace(/<p/g, '<p style="margin: 0;"')
+
+          // Reemplaza el placeholder en el atributo 'alt' de las imágenes
+          sectionHtml = sectionHtml.replace(new RegExp(`(alt="[^"]*){{\\s*${key}\\s*}}([^"]*")`, 'g'), `$1${plainText}$2`)
+
+          // Reemplaza el placeholder principal
+          const replacement = forClipboard ? styledHtml : `<span data-editor-key="${section.id}-${key}">${styledHtml}</span>`
+          sectionHtml = sectionHtml.replace(placeholderRegex, replacement)
+        }
+      }
+
+      // Devolvemos el HTML de la sección ya procesado
+      return sectionHtml
+    })
+
+    // 3. Unimos el HTML de todas las secciones para formar el correo final
+    return finalHtmlSections.join('')
+  }
+
+  // FUNCIÓN para actualizar el store cuando una sección cambie
+  const updateSectionContent = (sectionId, newContent) => {
+    const sectionIndex = editorStore.editableContent.sections.findIndex(s => s.id === sectionId)
+    if (sectionIndex !== -1) {
+      editorStore.editableContent.sections[sectionIndex].content = newContent
+      handleContentChange() // Reutilizamos esta función para marcar que hay cambios sin guardar
+    }
+  }
+
+  // --- INICIO DE LA MODIFICACIÓN: AÑADIR NUEVAS FUNCIONES ---
+  const deleteSection = sectionId => {
+    editorStore.editableContent.sections = editorStore.editableContent.sections.filter(s => s.id !== sectionId)
+    handleContentChange()
+  }
+
+  const moveSection = (sectionId, direction) => {
+    const sections = editorStore.editableContent.sections
+    const index = sections.findIndex(s => s.id === sectionId)
+
+    if (index === -1) return
+
+    const newIndex = index + direction
+
+    // Asegurarnos de no movernos fuera de los límites del array
+    if (newIndex < 0 || newIndex >= sections.length) return // Intercambiamos los elementos en el array
+    ;[sections[index], sections[newIndex]] = [sections[newIndex], sections[index]]
+
+    handleContentChange()
+  }
+  // --- FIN DE LA MODIFICACIÓN ---
 
   // --- Ciclo de Vida ---
   onMounted(async () => {

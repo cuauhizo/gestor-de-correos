@@ -1,6 +1,7 @@
 // backend/controllers/templateController.js
 const templateService = require('../services/templateService')
 const { validationResult } = require('express-validator')
+const { parseTemplateHTML } = require('../utils/templateParser')
 
 // GET /api/templates
 exports.getAllTemplates = async (req, res) => {
@@ -77,5 +78,28 @@ exports.deleteTemplate = async (req, res) => {
   } catch (error) {
     console.error('Error al eliminar template:', error)
     res.status(500).json({ message: 'Error interno del servidor.' })
+  }
+}
+
+// GET /api/templates/library/:id
+exports.getTemplateLibrary = async (req, res) => {
+  try {
+    const { id } = req.params
+    const template = await templateService.getTemplateById(id)
+    if (!template) return res.status(404).json({ message: 'Template no encontrado.' })
+
+    // Usamos el parser para obtener las secciones disponibles
+    const librarySections = parseTemplateHTML(template.html_content)
+
+    // Devolvemos solo la información necesaria para la biblioteca
+    const library = librarySections.map(sec => ({
+      type: sec.type,
+      html: sec.html, // El HTML crudo de la sección
+      content: sec.content, // El objeto de contenido vacío
+    }))
+
+    res.json(library)
+  } catch (error) {
+    res.status(500).json({ message: 'Error al generar la biblioteca de secciones.' })
   }
 }

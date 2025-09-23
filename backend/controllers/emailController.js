@@ -4,7 +4,12 @@ const { validationResult } = require('express-validator')
 
 // --- Funciones Auxiliares de Validación (traídas de server.js) ---
 const validateRichContent = value => {
-  if (typeof value !== 'string' || !value.replace(/<[^>]*>/g, '').trim()) {
+  // Si el contenido es exactamente '<p></p>' o está vacío, lo consideramos válido (para secciones nuevas).
+  if (typeof value !== 'string' || !value || value === '<p></p>') {
+    return true
+  }
+  // Para cualquier otro contenido, nos aseguramos de que no esté vacío después de quitar las etiquetas HTML.
+  if (!value.replace(/<[^>]*>/g, '').trim()) {
     throw new Error('El contenido no puede estar vacío.')
   }
   return true
@@ -79,26 +84,29 @@ exports.updateEmail = async (req, res) => {
     const { updated_content } = req.body
     const user_id = req.user.id
 
-    // Validación del contenido actualizado
-    for (const key in updated_content) {
-      const value = updated_content[key]
-      if (key.includes('enlace_')) {
-        validateUrl(value)
-      } else {
-        validateRichContent(value)
+    // 1. Verificamos que la nueva estructura es correcta
+    if (!updated_content || !Array.isArray(updated_content.sections)) {
+      return res.status(400).json({ message: 'El formato del contenido es inválido. Se esperaba un objeto con un array de secciones.' })
+    }
+
+    // 2. Iteramos a través de las secciones y validamos el contenido de cada una
+    for (const section of updated_content.sections) {
+      for (const key in section.content) {
+        const value = section.content[key]
+        if (key.includes('enlace_')) {
+          validateUrl(value) // Reutilizamos las funciones de validación que ya teníamos
+        } else if (!key.startsWith('image_')) {
+          validateRichContent(value)
+        }
       }
     }
 
-    // Verificación de bloqueo (aunque el middleware ya lo hace, es una doble seguridad)
-    const email = await emailService.getEmailLockStatus(uuid)
-    if (email.locked_by_user_id !== user_id) {
-      return res.status(403).json({ message: 'No tienes el bloqueo para guardar este correo.' })
-    }
-
+    // 3. Si todo es válido, llamamos al servicio para guardar en la BD
     await emailService.updateEmailContent(uuid, updated_content, user_id)
     res.json({ message: 'Contenido del correo actualizado exitosamente.' })
   } catch (error) {
     console.error('Error al actualizar el correo:', error)
+    // Devolvemos el mensaje de error de la validación si lo hubiera
     res.status(400).json({ message: error.message || 'Error interno del servidor.' })
   }
 }
