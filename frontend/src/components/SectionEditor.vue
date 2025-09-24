@@ -9,16 +9,17 @@
       </div>
     </div>
     <div class="section-content">
-      <div v-for="(value, key) in section.content" :key="key" class="mb-3">
-        <label :for="`${section.id}-${key}`" class="form-label fw-bold">{{ capitalizeFirstLetter(key.replace(/_/g, ' ')) }}:</label>
-
-        <template v-if="key.startsWith('image_') || key.includes('enlace_')">
-          <input :id="`${section.id}-${key}`" :value="value" @input="updateContent(key, $event.target.value)" type="url" class="form-control" placeholder="Introduce una URL" />
-        </template>
-        <template v-else>
-          <TiptapEditor :modelValue="value" @update:modelValue="newValue => updateContent(key, newValue)" />
-        </template>
-      </div>
+      <template v-for="(value, key) in section.content" :key="key">
+        <div v-if="!key.startsWith('image_')" class="mb-3" :data-editor-wrapper-key="`${section.id}-${key}`">
+          <label :for="`${section.id}-${key}`" class="form-label fw-bold">{{ capitalizeFirstLetter(key.replace(/_/g, ' ')) }}:</label>
+          <template v-if="key.includes('enlace_')">
+            <input :id="`${section.id}-${key}`" :value="value" @input="updateContent(key, $event.target.value)" type="url" class="form-control" placeholder="Introduce una URL" />
+          </template>
+          <template v-else>
+            <TiptapEditor :modelValue="value" @update:modelValue="newValue => updateContent(key, newValue)" />
+          </template>
+        </div>
+      </template>
     </div>
   </div>
 </template>

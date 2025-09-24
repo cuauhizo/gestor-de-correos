@@ -86,29 +86,6 @@
   let autoSaveTimeoutId = null
 
   // --- Lógica del Componente ---
-  const visibleEditableContent = computed(() => {
-    const filtered = {}
-    // Iteramos sobre los placeholders VÁLIDOS del template actual
-    for (const key of editorStore.currentPlaceholders) {
-      // Nos aseguramos de no crear campos para las imágenes (esas se editan en el preview)
-      if (!key.startsWith('image_')) {
-        // Asignamos el valor que existe en el content_json, o un string vacío si es un campo nuevo
-        filtered[key] = editorStore.editableContent[key] || ''
-      }
-    }
-    return filtered
-  })
-
-  const handleLinkInput = (key, event) => {
-    editorStore.editableContent[key] = event.target.value
-    handleContentChange()
-  }
-
-  const handleTiptapUpdate = (key, newValue) => {
-    editorStore.editableContent[key] = newValue
-    handleContentChange()
-  }
-
   const manualSaveChanges = async () => {
     clearTimeout(autoSaveTimeoutId)
     const wasSuccessful = await editorStore.saveEmail(uuid)
@@ -123,49 +100,73 @@
     scheduleNextAutoSave()
   }
 
+  // frontend/src/views/EmailEditor.vue
+
   const handlePreviewLoad = () => {
     isPreviewReady = true
     updatePreviewContent()
     const iframeDoc = previewIframe.value.contentWindow.document
-    if (iframeDoc) {
-      iframeDoc.addEventListener('dblclick', event => {
-        let target = event.target
-        while (target && target !== iframeDoc.body) {
-          if (target.dataset && target.dataset.editorKey) {
-            focusEditor(target.dataset.editorKey)
-            break
-          }
-          target = target.parentElement
-        }
-      })
+    if (!iframeDoc) return
 
-      if (authStore.isAdmin) {
-        iframeDoc.addEventListener('click', event => {
-          const target = event.target
-          if (target.tagName === 'IMG' && target.dataset.editorKey) {
+    const handleInteraction = event => {
+      let target = event.target
+      while (target && target !== iframeDoc.body) {
+        const keyData = target.getAttribute('data-editor-key')
+        if (keyData) {
+          // --- INICIO DE LA CORRECCIÓN ---
+          const keyParts = keyData.split('-')
+          // La clave del contenido (ej. 'image_0') siempre es la última parte.
+          const contentKey = keyParts.pop()
+          // El ID de la sección es todo lo demás, unido de nuevo por guiones.
+          const sectionId = keyParts.join('-')
+          // --- FIN DE LA CORRECCIÓN ---
+
+          if (!sectionId || !contentKey) return // Salir si algo salió mal
+
+          if (target.tagName === 'IMG' && authStore.isAdmin) {
             event.preventDefault()
-            const key = target.dataset.editorKey
-            // CORRECCIÓN: Leer el valor actual desde el store
-            const currentUrl = editorStore.editableContent[key] || ''
-            const newUrl = prompt('Introduce la nueva URL de la imagen:', currentUrl)
-            if (newUrl !== null && newUrl !== currentUrl) {
-              // CORRECCIÓN: Actualizar el valor en el store
-              editorStore.editableContent[key] = newUrl
-              handleContentChange()
+
+            const section = editorStore.editableContent.sections.find(s => s.id === sectionId)
+            if (section) {
+              const currentUrl = section.content[contentKey] || ''
+              const newUrl = prompt('Introduce la nueva URL de la imagen:', currentUrl)
+              if (newUrl !== null && newUrl !== currentUrl) {
+                section.content[contentKey] = newUrl
+                handleContentChange()
+              }
             }
+          } else if (target.tagName !== 'IMG') {
+            // focusEditor(sectionId, contentKey) // Ajustamos focusEditor para el futuro
+            // Asegúrate de que pasas ambos, sectionId y contentKey
+            focusEditor(sectionId, contentKey)
           }
-        })
+          break // Salimos del bucle una vez que encontramos y manejamos el target
+        }
+        target = target.parentElement
       }
     }
+
+    // Simplificamos los listeners
+    iframeDoc.addEventListener('click', handleInteraction)
+    iframeDoc.addEventListener('dblclick', handleInteraction)
   }
 
-  const focusEditor = key => {
-    if (!key) return
-    const wrapper = document.querySelector(`[data-editor-wrapper-key="${key}"]`)
+  // También necesitamos ajustar focusEditor para que acepte los dos argumentos
+  // frontend/src/views/EmailEditor.vue
+
+  const focusEditor = (sectionId, contentKey) => {
+    // 1. Construimos el identificador único que acabamos de crear en SectionEditor.vue
+    const combinedKey = `${sectionId}-${contentKey}`
+
+    // 2. Usamos querySelector para encontrar el elemento exacto
+    const wrapper = document.querySelector(`[data-editor-wrapper-key="${combinedKey}"]`)
+
     if (wrapper) {
+      // 3. Una vez encontrado el contenedor, buscamos el campo de entrada dentro de él
       const inputElement = wrapper.querySelector('input, textarea, .ProseMirror')
       if (inputElement) {
         inputElement.focus()
+        // Hacemos scroll para que el campo sea visible
         wrapper.scrollIntoView({ behavior: 'smooth', block: 'center' })
       }
     }
@@ -175,9 +176,11 @@
     if (!isPreviewReady || !previewIframe.value) return
     const finalHtml = generateFinalHtml()
     previewIframe.value.contentWindow.document.body.innerHTML = `
+    <center>
       <div style="max-width: 772px; margin: 30px auto; background-color: #ffffff; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
         ${finalHtml}
       </div>
+    </center>
       `
   }
 
@@ -210,43 +213,11 @@
     const textToCopy = generateFinalHtml(true)
     navigator.clipboard
       .writeText(textToCopy)
-      .then(() => showFeedback.show('HTML copiado al portapapeles!', 'success'))
-      .catch(() => showFeedback.show('Error al copiar HTML.', 'error'))
+      .then(() => feedbackStore.show('HTML copiado al portapapeles!', 'success'))
+      .catch(() => feedbackStore.show('Error al copiar HTML.', 'error'))
   }
 
   const old_generateFinalHtml = (forClipboard = false) => {
-    // CORRECCIÓN: Leer el templateHtml y editableContent desde el store
-    let finalHtml = editorStore.templateHtml
-    let imgIndex = 0
-    finalHtml = finalHtml.replace(/<img[^>]*>/g, match => {
-      const key = `image_${imgIndex}`
-      const newSrc = editorStore.editableContent[key] ? `src="${encodeURI(editorStore.editableContent[key])}"` : 'src=""'
-      let newTag = match.replace(/src="[^"]*"/, newSrc)
-      if (!forClipboard && authStore.isAdmin) {
-        newTag = newTag.replace('<img', `<img data-editor-key="${key}"`)
-      }
-      imgIndex++
-      return newTag
-    })
-    for (const key in editorStore.editableContent) {
-      if (!key.startsWith('image_')) {
-        const rawContent = editorStore.editableContent[key] || ''
-        const placeholderRegex = new RegExp(`{{\\s*${key}\\s*}}`, 'g')
-        if (key.includes('enlace_')) {
-          finalHtml = finalHtml.replace(placeholderRegex, encodeURI(rawContent))
-        } else {
-          const plainText = getPlainTextFromHtml(rawContent)
-          const styledHtml = rawContent.replace(/<p/g, '<p style="margin: 0;"')
-          finalHtml = finalHtml.replace(new RegExp(`(alt="[^"]*){{\\s*${key}\\s*}}([^"]*")`, 'g'), `$1${plainText}$2`)
-          const replacement = forClipboard ? styledHtml : `<span data-editor-key="${key}">${styledHtml}</span>`
-          finalHtml = finalHtml.replace(placeholderRegex, replacement)
-        }
-      }
-    }
-    return finalHtml
-  }
-
-  const generateFinalHtml = (forClipboard = false) => {
     if (!editorStore.editableContent || !editorStore.editableContent.sections) {
       return '' // Devuelve vacío si no hay secciones
     }
@@ -292,6 +263,66 @@
     return finalHtmlSections.join('')
   }
 
+  const generateFinalHtml = (forClipboard = false) => {
+    // 1. Verificamos que la estructura de secciones exista.
+    if (!editorStore.editableContent || !Array.isArray(editorStore.editableContent.sections)) {
+      return '' // Si no hay secciones, no hay nada que mostrar.
+    }
+
+    // 2. Usamos .map() para transformar cada objeto de sección en su HTML final.
+    const finalHtmlSections = editorStore.editableContent.sections.map(section => {
+      // Partimos del "mini-template" de HTML que tiene cada sección.
+      let sectionHtml = section.html || ''
+
+      // 3. Iteramos sobre el contenido específico de ESTA sección.
+      for (const key in section.content) {
+        const rawContent = section.content[key] || ''
+
+        // Lógica para imágenes
+        if (key.startsWith('image_')) {
+          const newSrc = rawContent ? `src="${encodeURI(rawContent)}"` : 'src=""'
+          // Buscamos la primera etiqueta <img> en este bloque y reemplazamos solo su src.
+          // Esto es más seguro que un replace global si hubiera varias imágenes.
+          let imageTagFound = false
+          sectionHtml = sectionHtml.replace(/<img[^>]*>/, imgTag => {
+            if (imageTagFound) return imgTag // Solo reemplaza la primera imagen
+            imageTagFound = true
+
+            let updatedTag = imgTag.replace(/src="[^"]*"/, newSrc)
+            if (!forClipboard && authStore.isAdmin) {
+              // El data-key ahora es único para esta sección y este campo
+              updatedTag = updatedTag.replace('<img', `<img data-editor-key="${section.id}-${key}"`)
+            }
+            return updatedTag
+          })
+
+          // Lógica para enlaces
+        } else if (key.includes('enlace_')) {
+          const placeholderRegex = new RegExp(`{{\\s*${key}\\s*}}`, 'g')
+          sectionHtml = sectionHtml.replace(placeholderRegex, encodeURI(rawContent))
+
+          // Lógica para texto y Tiptap
+        } else {
+          const placeholderRegex = new RegExp(`{{\\s*${key}\\s*}}`, 'g')
+          const plainText = getPlainTextFromHtml(rawContent)
+          const styledHtml = rawContent.replace(/<p/g, '<p style="margin: 0;"')
+
+          // Reemplaza el placeholder en el atributo 'alt' de las imágenes dentro de la sección
+          sectionHtml = sectionHtml.replace(new RegExp(`(alt="[^"]*){{\\s*${key}\\s*}}([^"]*")`, 'g'), `$1${plainText}$2`)
+
+          // Reemplaza el placeholder principal en el cuerpo de la sección
+          const replacement = forClipboard ? styledHtml : `<span data-editor-key="${section.id}-${key}">${styledHtml}</span>`
+          sectionHtml = sectionHtml.replace(placeholderRegex, replacement)
+        }
+      }
+
+      return sectionHtml
+    })
+
+    // 4. Unimos el HTML de todas las secciones para formar el correo final.
+    return finalHtmlSections.join('\n')
+  }
+
   // FUNCIÓN para actualizar el store cuando una sección cambie
   const updateSectionContent = (sectionId, newContent) => {
     const sectionIndex = editorStore.editableContent.sections.findIndex(s => s.id === sectionId)
@@ -330,7 +361,7 @@
 
     if (!result.success) {
       if (result.isLockedError) {
-        showFeedback.show(editorStore.error, 'error')
+        feedbackStore.show(editorStore.error, 'error')
         router.push('/lista-correos')
       }
       return
