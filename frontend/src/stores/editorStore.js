@@ -14,6 +14,7 @@ export const useEditorStore = defineStore('editor', () => {
   const isSaving = ref(false)
   const hasUnsavedChanges = ref(false)
   const sectionLibrary = ref([])
+  const isLoadingLibrary = ref(false)
 
   const autoSaveStatus = reactive({
     text: 'Listo',
@@ -35,8 +36,8 @@ export const useEditorStore = defineStore('editor', () => {
       // CORRECCIÓN: Simplemente asignamos el content_json que ya viene con la estructura de secciones correcta.
       editableContent.value = content_json
 
-      // Cargamos la biblioteca de secciones basada en el template_id
-      await fetchSectionLibrary(template_id)
+      // Cargamos la biblioteca de secciones
+      await fetchSectionLibrary()
 
       return { success: true }
     } catch (err) {
@@ -103,24 +104,75 @@ export const useEditorStore = defineStore('editor', () => {
     autoSaveStatus.class = 'bg-secondary'
   }
 
-  async function fetchSectionLibrary(templateId) {
+  async function fetchSectionLibrary() {
+    isLoadingLibrary.value = true
     try {
-      const response = await axios.get(`/api/templates/library/${templateId}`)
+      const response = await axios.get('/api/section-templates')
       sectionLibrary.value = response.data
     } catch (err) {
       console.error('No se pudo cargar la biblioteca de secciones', err)
       sectionLibrary.value = []
+    } finally {
+      isLoadingLibrary.value = false // <-- ACTUALIZA EL ESTADO
     }
   }
 
   function addSection(sectionTemplate) {
-    const newSection = {
-      ...sectionTemplate,
-      id: uuidv4(), // Le damos un nuevo ID único
-      // Aseguramos que el contenido esté bien formado
-      content: { ...sectionTemplate.content },
+    if (!sectionTemplate || !sectionTemplate.html_content) {
+      console.error('Plantilla de sección inválida:', sectionTemplate)
+      return
     }
+
+    const newContent = {}
+    const sectionHTML = sectionTemplate.html_content
+
+    // 1. Parseo de texto (sin cambios)
+    const textRegex = /{{\s*([a-zA-Z0-9_]+)\s*}}/g
+    let textMatch
+    while ((textMatch = textRegex.exec(sectionHTML)) !== null) {
+      newContent[textMatch[1].trim()] = ''
+    }
+
+    // --- INICIO DE LA CORRECCIÓN DE IMÁGENES ---
+    // 2. Parseo de imágenes para manejar múltiples imágenes por sección
+    const imgRegex = /<img[^>]*>/g
+
+    // Contamos el total de imágenes que ya existen en todo el correo
+    let globalImgIndex = editableContent.value.sections.reduce((count, sec) => {
+      return count + Object.keys(sec.content).filter(k => k.startsWith('image_')).length
+    }, 0)
+
+    // Buscamos todas las imágenes en el HTML de la nueva sección
+    // y creamos una clave única para cada una, incrementando el contador global.
+    const images = sectionHTML.match(imgRegex) || []
+    images.forEach(() => {
+      newContent[`image_${globalImgIndex}`] = ''
+      globalImgIndex++
+    })
+    // --- FIN DE LA CORRECCIÓN DE IMÁGENES ---
+
+    const newSection = {
+      id: uuidv4(),
+      type: sectionTemplate.type_key,
+      html: sectionTemplate.html_content,
+      content: newContent,
+    }
+
     editableContent.value.sections.push(newSection)
+    handleContentChange()
+  }
+
+  // No olvides añadir handleContentChange al return del store si no lo has hecho
+  // Esta función debe existir en tu EmailEditor.vue, pero necesitamos una referencia a ella o una
+  // forma de emitir el evento de cambio desde el store.
+  // Por ahora, lo más simple es replicar la lógica directamente en el store.
+  function handleContentChange() {
+    if (!hasUnsavedChanges.value) {
+      autoSaveStatus.text = 'Cambios sin guardar'
+      autoSaveStatus.class = 'bg-warning'
+    }
+    hasUnsavedChanges.value = true
+    // La previsualización se actualizará reactivamente.
   }
 
   return {
@@ -133,6 +185,7 @@ export const useEditorStore = defineStore('editor', () => {
     hasUnsavedChanges,
     autoSaveStatus,
     sectionLibrary,
+    isLoadingLibrary,
     addSection,
     loadAndLockEmail,
     saveEmail,

@@ -51,6 +51,10 @@
   }
 
   function formatSectionType(type) {
+    // Si 'type' no es un string, devuelve un texto por defecto.
+    if (typeof type !== 'string') {
+      return 'Sección'
+    }
     return capitalizeFirstLetter(type.replace(/-/g, ' '))
   }
 </script>

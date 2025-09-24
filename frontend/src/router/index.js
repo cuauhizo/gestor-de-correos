@@ -14,6 +14,7 @@ import LoginView from '../views/LoginView.vue'
 import RegisterView from '../views/RegisterView.vue'
 import NotFound from '../views/NotFound.vue' // Vista para manejar rutas no encontradas (404)
 import UserManager from '../views/UserManager.vue'
+import SectionTemplateManager from '../views/SectionTemplateManager.vue'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -50,6 +51,12 @@ const router = createRouter({
       name: 'user-manager',
       component: UserManager,
       meta: { requiresAuth: true, requiresAdmin: true }, // Solo admin
+    },
+    {
+      path: '/gestionar-secciones', // <-- AÑADE ESTA RUTA
+      name: 'section-template-manager',
+      component: SectionTemplateManager,
+      meta: { requiresAuth: true, requiresAdmin: true },
     },
     // --- Rutas Públicas ---
     // Estas rutas no requieren autenticación

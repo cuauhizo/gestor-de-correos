@@ -104,6 +104,9 @@
               <li class="nav-item" v-if="authStore.isAdmin">
                 <router-link to="/gestionar-usuarios" class="nav-link" active-class="active">Gestionar Usuarios</router-link>
               </li>
+              <li class="nav-item" v-if="authStore.isAdmin">
+                <router-link to="/gestionar-secciones" class="nav-link" active-class="active">Gestionar Secciones</router-link>
+              </li>
             </template>
           </ul>
           <ul class="navbar-nav ms-auto">

@@ -217,109 +217,72 @@
       .catch(() => feedbackStore.show('Error al copiar HTML.', 'error'))
   }
 
-  const old_generateFinalHtml = (forClipboard = false) => {
-    if (!editorStore.editableContent || !editorStore.editableContent.sections) {
-      return '' // Devuelve vacío si no hay secciones
-    }
-
-    // 1. Iteramos sobre cada sección en el orden actual
-    const finalHtmlSections = editorStore.editableContent.sections.map(section => {
-      // Partimos del HTML crudo de esta sección específica
-      let sectionHtml = section.html || ''
-
-      // 2. Rellenamos los placeholders con el contenido de la sección
-      for (const key in section.content) {
-        const rawContent = section.content[key] || ''
-
-        if (key.startsWith('image_')) {
-          // Lógica para reemplazar la fuente de la imagen
-          const newSrc = rawContent ? `src="${encodeURI(rawContent)}"` : 'src=""'
-          // Buscamos una sola etiqueta de imagen en este bloque y reemplazamos su src
-          sectionHtml = sectionHtml.replace(/src="[^"]*"/, newSrc)
-        } else if (key.includes('enlace_')) {
-          // Lógica para enlaces
-          const placeholderRegex = new RegExp(`{{\\s*${key}\\s*}}`, 'g')
-          sectionHtml = sectionHtml.replace(placeholderRegex, encodeURI(rawContent))
-        } else {
-          // Lógica para texto normal y Tiptap
-          const placeholderRegex = new RegExp(`{{\\s*${key}\\s*}}`, 'g')
-          const plainText = getPlainTextFromHtml(rawContent)
-          const styledHtml = rawContent.replace(/<p/g, '<p style="margin: 0;"')
-
-          // Reemplaza el placeholder en el atributo 'alt' de las imágenes
-          sectionHtml = sectionHtml.replace(new RegExp(`(alt="[^"]*){{\\s*${key}\\s*}}([^"]*")`, 'g'), `$1${plainText}$2`)
-
-          // Reemplaza el placeholder principal
-          const replacement = forClipboard ? styledHtml : `<span data-editor-key="${section.id}-${key}">${styledHtml}</span>`
-          sectionHtml = sectionHtml.replace(placeholderRegex, replacement)
-        }
-      }
-
-      // Devolvemos el HTML de la sección ya procesado
-      return sectionHtml
-    })
-
-    // 3. Unimos el HTML de todas las secciones para formar el correo final
-    return finalHtmlSections.join('')
-  }
+  // frontend/src/views/EmailEditor.vue
 
   const generateFinalHtml = (forClipboard = false) => {
-    // 1. Verificamos que la estructura de secciones exista.
     if (!editorStore.editableContent || !Array.isArray(editorStore.editableContent.sections)) {
-      return '' // Si no hay secciones, no hay nada que mostrar.
+      return ''
     }
 
-    // 2. Usamos .map() para transformar cada objeto de sección en su HTML final.
+    // Un contador global para saber qué clave de imagen (image_0, image_1...) nos toca procesar
+    let globalImgIndex = 0
+
     const finalHtmlSections = editorStore.editableContent.sections.map(section => {
-      // Partimos del "mini-template" de HTML que tiene cada sección.
       let sectionHtml = section.html || ''
 
-      // 3. Iteramos sobre el contenido específico de ESTA sección.
+      // --- INICIO DE LA LÓGICA DE IMÁGENES CORREGIDA ---
+      // Buscamos todas las etiquetas de imagen en el HTML de esta sección
+      const imageTags = sectionHtml.match(/<img[^>]*>/g) || []
+
+      // Iteramos sobre CADA imagen encontrada en esta sección
+      imageTags.forEach(() => {
+        const imageKey = `image_${globalImgIndex}`
+        const rawContent = section.content[imageKey] || ''
+        const newSrc = rawContent ? `src="${encodeURI(rawContent)}"` : 'src=""'
+
+        let replaced = false
+        // Usamos una función en .replace para asegurarnos de reemplazar solo una vez por iteración
+        sectionHtml = sectionHtml.replace(/<img[^>]*>/, imgTag => {
+          if (replaced || !imgTag.includes('src=')) return imgTag // Si ya fue reemplazado o no es una etiqueta válida, la saltamos
+          replaced = true
+
+          let updatedTag = imgTag.replace(/src="[^"]*"/, newSrc)
+          if (!forClipboard && authStore.isAdmin) {
+            updatedTag = updatedTag.replace('<img', `<img data-editor-key="${section.id}-${imageKey}"`)
+          }
+          return updatedTag
+        })
+
+        globalImgIndex++ // Avanzamos el contador global para la siguiente imagen del correo
+      })
+      // --- FIN DE LA LÓGICA DE IMÁGENES CORREGIDA ---
+
+      // El procesamiento de texto y enlaces se queda igual
       for (const key in section.content) {
-        const rawContent = section.content[key] || ''
-
-        // Lógica para imágenes
-        if (key.startsWith('image_')) {
-          const newSrc = rawContent ? `src="${encodeURI(rawContent)}"` : 'src=""'
-          // Buscamos la primera etiqueta <img> en este bloque y reemplazamos solo su src.
-          // Esto es más seguro que un replace global si hubiera varias imágenes.
-          let imageTagFound = false
-          sectionHtml = sectionHtml.replace(/<img[^>]*>/, imgTag => {
-            if (imageTagFound) return imgTag // Solo reemplaza la primera imagen
-            imageTagFound = true
-
-            let updatedTag = imgTag.replace(/src="[^"]*"/, newSrc)
-            if (!forClipboard && authStore.isAdmin) {
-              // El data-key ahora es único para esta sección y este campo
-              updatedTag = updatedTag.replace('<img', `<img data-editor-key="${section.id}-${key}"`)
-            }
-            return updatedTag
-          })
-
-          // Lógica para enlaces
-        } else if (key.includes('enlace_')) {
+        if (!key.startsWith('image_')) {
+          const rawContent = section.content[key] || ''
           const placeholderRegex = new RegExp(`{{\\s*${key}\\s*}}`, 'g')
-          sectionHtml = sectionHtml.replace(placeholderRegex, encodeURI(rawContent))
+          if (key.includes('enlace_')) {
+            sectionHtml = sectionHtml.replace(placeholderRegex, encodeURI(rawContent))
+          } else {
+            // Lógica para texto y Tiptap
+            const placeholderRegex = new RegExp(`{{\\s*${key}\\s*}}`, 'g')
+            const plainText = getPlainTextFromHtml(rawContent)
+            const styledHtmlContent = rawContent.replace(/<p/g, '<p style="margin: 0;"')
 
-          // Lógica para texto y Tiptap
-        } else {
-          const placeholderRegex = new RegExp(`{{\\s*${key}\\s*}}`, 'g')
-          const plainText = getPlainTextFromHtml(rawContent)
-          const styledHtml = rawContent.replace(/<p/g, '<p style="margin: 0;"')
+            // --- INICIO DE LA CORRECCIÓN ---
+            // Reemplazamos en la variable principal de la sección, no en una nueva
+            sectionHtml = sectionHtml.replace(new RegExp(`(alt="[^"]*){{\\s*${key}\\s*}}([^"]*")`, 'g'), `$1${plainText}$2`)
 
-          // Reemplaza el placeholder en el atributo 'alt' de las imágenes dentro de la sección
-          sectionHtml = sectionHtml.replace(new RegExp(`(alt="[^"]*){{\\s*${key}\\s*}}([^"]*")`, 'g'), `$1${plainText}$2`)
-
-          // Reemplaza el placeholder principal en el cuerpo de la sección
-          const replacement = forClipboard ? styledHtml : `<span data-editor-key="${section.id}-${key}">${styledHtml}</span>`
-          sectionHtml = sectionHtml.replace(placeholderRegex, replacement)
+            const replacement = forClipboard ? styledHtmlContent : `<span data-editor-key="${section.id}-${key}">${styledHtmlContent}</span>`
+            sectionHtml = sectionHtml.replace(placeholderRegex, replacement)
+            // --- FIN DE LA CORRECCIÓN ---
+          }
         }
       }
-
       return sectionHtml
     })
 
-    // 4. Unimos el HTML de todas las secciones para formar el correo final.
     return finalHtmlSections.join('\n')
   }
 

@@ -8,9 +8,10 @@
           <button type="button" class="btn-close" @click="close"></button>
         </div>
         <div class="modal-body">
-          <div class="list-group">
-            <a href="#" v-for="section in editorStore.sectionLibrary" :key="section.type" @click.prevent="selectSection(section)" class="list-group-item list-group-item-action">
-              {{ capitalizeFirstLetter(section.type.replace(/-/g, ' ')) }}
+          <div v-if="editorStore.isLoadingLibrary" class="text-center">Cargando biblioteca...</div>
+          <div v-else class="list-group">
+            <a href="#" v-for="section in editorStore.sectionLibrary" :key="section.type_key" @click.prevent="selectSection(section)" class="list-group-item list-group-item-action">
+              {{ section.name }}
             </a>
           </div>
         </div>
