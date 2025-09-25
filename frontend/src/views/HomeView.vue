@@ -30,7 +30,12 @@
               <input type="url" :id="`initial-${key}`" v-model="initialContent[key]" placeholder="Introduce URL" :class="['form-control', { 'is-invalid': initialContentErrors[key] }]" />
             </template>
             <template v-else>
-              <textarea :id="`initial-${key}`" v-model="initialContent[key]" placeholder="Introduce texto o HTML" :class="['form-control', { 'is-invalid': initialContentErrors[key] }]"></textarea>
+              <div v-if="key.toLowerCase().includes('titulo')">
+                <textarea :id="`initial-${key}`" v-model="initialContent[key]" placeholder="Introduce texto o HTML" :class="['form-control', { 'is-invalid': initialContentErrors[key] }]" rows="1"></textarea>
+              </div>
+              <div v-else>
+                <textarea :id="`initial-${key}`" v-model="initialContent[key]" placeholder="Introduce texto o HTML" :class="['form-control', { 'is-invalid': initialContentErrors[key] }]" rows="4"></textarea>
+              </div>
             </template>
             <p v-if="initialContentErrors[key]" class="invalid-feedback d-block">{{ initialContentErrors[key] }}</p>
           </template>
@@ -67,6 +72,9 @@
   const isCreatingEmail = ref(false)
   const newEmailUrl = ref('')
   const creationError = ref(null)
+  const LOREM_IPSUM_TITLE = 'Lorem Ipsum Dolor Sit Amet'
+  const LOREM_IPSUM_PARAGRAPH =
+    'Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.'
 
   // --- Funciones Auxiliares ---
   const getTemplateName = id => templateStore.templates.find(t => t.id === id)?.name || '...'
@@ -84,15 +92,23 @@
       const textRegex = /{{\s*([a-zA-Z0-9_]+)\s*}}/g
       let textMatch
       while ((textMatch = textRegex.exec(html_content)) !== null) {
-        newContent[textMatch[1]] = ''
+        const key = textMatch[1]
+        // Si la clave del placeholder incluye "titulo", usamos el texto corto.
+        // Si no, usamos el párrafo largo.
+        if (key.toLowerCase().includes('titulo')) {
+          newContent[key] = `${LOREM_IPSUM_TITLE}`
+        } else {
+          newContent[key] = `${LOREM_IPSUM_PARAGRAPH}`
+        }
       }
 
-      // Extraer URLs de imágenes
+      // Extraer URLs de imágenes (esta parte no cambia)
       const imgRegex = /<img[^>]+src="([^"]+)"/g
       let imgMatch
       let imgIndex = 0
       while ((imgMatch = imgRegex.exec(html_content)) !== null) {
         const key = `image_${imgIndex}`
+        // Mantenemos la URL por defecto que viene en el template
         newContent[key] = imgMatch[1]
         imgIndex++
       }

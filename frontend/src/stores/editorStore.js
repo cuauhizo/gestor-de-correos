@@ -123,33 +123,38 @@ export const useEditorStore = defineStore('editor', () => {
       return
     }
 
+    // --- INICIO DE LA LÓGICA DE LOREM IPSUM ---
+    const LOREM_IPSUM_TITLE = 'Lorem Ipsum Dolor Sit Amet'
+    const LOREM_IPSUM_PARAGRAPH = 'Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.'
+
     const newContent = {}
     const sectionHTML = sectionTemplate.html_content
 
-    // 1. Parseo de texto (sin cambios)
+    // 1. Parseo de texto con relleno Lorem Ipsum
     const textRegex = /{{\s*([a-zA-Z0-9_]+)\s*}}/g
     let textMatch
     while ((textMatch = textRegex.exec(sectionHTML)) !== null) {
-      newContent[textMatch[1].trim()] = ''
+      const key = textMatch[1].trim()
+      if (key.toLowerCase().includes('titulo')) {
+        newContent[key] = `${LOREM_IPSUM_TITLE}`
+      } else {
+        newContent[key] = `${LOREM_IPSUM_PARAGRAPH}`
+      }
     }
+    // --- FIN DE LA LÓGICA DE LOREM IPSUM ---
 
-    // --- INICIO DE LA CORRECCIÓN DE IMÁGENES ---
-    // 2. Parseo de imágenes para manejar múltiples imágenes por sección
+    // 2. Parseo de imágenes (se queda igual)
     const imgRegex = /<img[^>]*>/g
-
-    // Contamos el total de imágenes que ya existen en todo el correo
     let globalImgIndex = editableContent.value.sections.reduce((count, sec) => {
       return count + Object.keys(sec.content).filter(k => k.startsWith('image_')).length
     }, 0)
 
-    // Buscamos todas las imágenes en el HTML de la nueva sección
-    // y creamos una clave única para cada una, incrementando el contador global.
     const images = sectionHTML.match(imgRegex) || []
     images.forEach(() => {
-      newContent[`image_${globalImgIndex}`] = ''
+      // Aquí podrías poner una URL de imagen de placeholder si quisieras
+      newContent[`image_${globalImgIndex}`] = 'https://placehold.co/600x300'
       globalImgIndex++
     })
-    // --- FIN DE LA CORRECCIÓN DE IMÁGENES ---
 
     const newSection = {
       id: uuidv4(),

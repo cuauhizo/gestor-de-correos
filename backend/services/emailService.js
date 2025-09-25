@@ -33,24 +33,31 @@ exports.old_createEmail = async (template_id, initial_content, user_id) => {
 exports.createEmail = async (template_id, initial_content, user_id) => {
   const uuid = uuidv4()
 
-  // 1. Obtenemos el HTML del template maestro
   const [templateRows] = await pool.execute('SELECT html_content FROM templates WHERE id = ?', [template_id])
   if (templateRows.length === 0) {
     throw new Error('Template no encontrado')
   }
   const templateHtml = templateRows[0].html_content
 
-  // 2. Parseamos el HTML para obtener la estructura de secciones
   const sections = parseTemplateHTML(templateHtml)
 
-  // 3. (Opcional pero recomendado) Rellenamos con el contenido inicial que viene del frontend
-  if (initial_content && sections.length > 0) {
-    // Este es un ejemplo simple, se podría hacer más robusto
-    // Asumimos que el primer `initial_content` va en la primera sección
-    Object.assign(sections[0].content, initial_content)
+  // --- INICIO DE LA CORRECCIÓN ---
+  // Rellenamos con el contenido inicial que viene del frontend de forma inteligente.
+  if (initial_content) {
+    // Iteramos sobre cada sección que hemos parseado del template.
+    sections.forEach(section => {
+      // Iteramos sobre cada clave de contenido de esa sección (ej. "titulo_noticia").
+      for (const key in section.content) {
+        // Si el contenido inicial que nos envió el frontend tiene un valor para esta clave...
+        if (initial_content[key]) {
+          // ...lo asignamos.
+          section.content[key] = initial_content[key]
+        }
+      }
+    })
   }
+  // --- FIN DE LA CORRECCIÓN ---
 
-  // 4. Creamos el objeto final para el JSON
   const finalContentObject = { sections }
 
   await pool.execute('INSERT INTO emails_editable (uuid, template_id, content_json, user_id) VALUES (?, ?, ?, ?)', [uuid, template_id, JSON.stringify(finalContentObject), user_id])
