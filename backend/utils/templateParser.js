@@ -1,40 +1,48 @@
 // backend/utils/templateParser.js
 const { v4: uuidv4 } = require('uuid')
+const { parse } = require('node-html-parser') // <-- IMPORTAMOS EL NUEVO PARSER
 
-// Esta función toma el HTML completo de un template y lo convierte en nuestro nuevo formato de secciones.
 function parseTemplateHTML(htmlContent) {
   const sections = []
-  // La expresión regular ahora captura el tag <table> completo
-  const sectionRegex = /(<table[^>]*data-section-type="([^"]+)"[^>]*>[\s\S]*?<\/table>)/g
-  let match
   let imageCounter = 0
 
-  while ((match = sectionRegex.exec(htmlContent)) !== null) {
-    const fullHtml = match[1] // HTML completo de la sección
-    const sectionType = match[2] // ej: "noticia-texto-imagen"
+  // 1. Parseamos el string de HTML en un árbol de DOM
+  const root = parse(htmlContent)
 
-    const content = {}
-    const placeholders = new Set() // Usamos un Set para evitar duplicados
+  // 2. Buscamos TODOS los elementos que sean secciones
+  const sectionElements = root.querySelectorAll('[data-section-type]')
 
-    // 1. Extraer placeholders de texto como {{variable}}
-    const textRegex = /{{\s*([a-zA-Z0-9_]+)\s*}}/g
-    let textMatch
-    while ((textMatch = textRegex.exec(fullHtml)) !== null) {
-      content[textMatch[1].trim()] = ''
+  sectionElements.forEach(sectionNode => {
+    // Solo procesamos las tablas que son hijas directas del cuerpo principal,
+    // para ignorar las tablas anidadas.
+    if (sectionNode.tagName === 'TABLE' && (sectionNode.parentNode.tagName === 'BODY' || sectionNode.parentNode.tagName === 'CENTER')) {
+      const sectionType = sectionNode.getAttribute('data-section-type')
+      const sectionHTML = sectionNode.outerHTML // Obtenemos el HTML completo de la sección
+      const content = {}
+
+      // 3. Extraer placeholders de texto
+      const textRegex = /{{\s*([a-zA-Z0-9_]+)\s*}}/g
+      let textMatch
+      while ((textMatch = textRegex.exec(sectionHTML)) !== null) {
+        content[textMatch[1].trim()] = ''
+      }
+
+      // 4. Extraer imágenes
+      const images = sectionNode.querySelectorAll('img')
+      images.forEach(() => {
+        const imageKey = `image_${imageCounter}`
+        content[imageKey] = ''
+        imageCounter++
+      })
+
+      sections.push({
+        id: uuidv4(),
+        type: sectionType,
+        html: sectionHTML,
+        content: content,
+      })
     }
-    const imgRegex = /<img[^>]*>/g
-    while (imgRegex.exec(fullHtml) !== null) {
-      content[`image_${imageCounter}`] = ''
-      imageCounter++
-    }
-
-    sections.push({
-      id: uuidv4(),
-      type: sectionType,
-      html: fullHtml, // <-- Guardamos el HTML crudo
-      content: content,
-    })
-  }
+  })
 
   return sections
 }
