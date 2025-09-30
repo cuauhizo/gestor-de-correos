@@ -3,9 +3,15 @@
     <div class="section-header">
       <h5 class="section-title">{{ formatSectionType(section.type) }}</h5>
       <div class="section-controls d-flex align-items-center gap-2">
-        <button @click="$emit('moveUp')" :disabled="isFirst" class="btn btn-sm btn-outline-secondary" title="Mover arriba">↑</button>
-        <button @click="$emit('moveDown')" :disabled="isLast" class="btn btn-sm btn-outline-secondary" title="Mover abajo">↓</button>
-        <button @click="$emit('delete')" class="btn btn-sm btn-outline-danger" title="Eliminar sección">🗑️</button>
+        <button @click="$emit('moveUp')" :disabled="isFirst" class="btn btn-sm btn-outline-secondary" title="Mover arriba">
+          <i-entypo:chevron-thin-up />
+        </button>
+        <button @click="$emit('moveDown')" :disabled="isLast" class="btn btn-sm btn-outline-secondary" title="Mover abajo">
+          <i-entypo:chevron-thin-down />
+        </button>
+        <button @click="$emit('delete')" class="btn btn-sm btn-outline-danger" title="Eliminar sección">
+          <i-entypo:trash />
+        </button>
       </div>
     </div>
     <div class="section-content">

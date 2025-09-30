@@ -3,10 +3,6 @@
     <div class="row">
       <div class="col-12 text-center mb-4">
         <h1>Editor de Contenido de Correo</h1>
-        <h2 v-if="editorStore.templateName" class="h4 text-muted fw-normal">
-          Editando Template:
-          <span class="fw-bold">{{ editorStore.templateName }}</span>
-        </h2>
       </div>
       <div class="col-12">
         <div v-if="editorStore.loading" class="text-center text-secondary">Cargando correo...</div>
@@ -20,8 +16,11 @@
                 <span :class="['badge', editorStore.autoSaveStatus.class]">{{ editorStore.autoSaveStatus.text }}</span>
               </div>
               <div class="scroll">
-                <div class="text-center mt-3">
-                  <button @click="isAddModalVisible = true" class="btn btn-outline-primary">➕ Añadir Sección</button>
+                <div class="text-center my-3">
+                  <button @click="isAddModalVisible = true" class="btn btn-outline-primary">
+                    <i-entypo:add-to-list />
+                    Añadir Sección
+                  </button>
                   <AddSectionModal :is-visible="isAddModalVisible" @close="isAddModalVisible = false" />
                 </div>
                 <SectionEditor
@@ -35,12 +34,13 @@
                   @move-up="moveSection(section.id, -1)"
                   @move-down="moveSection(section.id, 1)" />
               </div>
-              <div class="d-flex flex-wrap justify-content-center gap-2 mt-3">
+              <div class="d-flex flex-wrap justify-content-center gap-1 mt-3">
                 <router-link to="/lista-correos" class="btn btn-danger">Cancelar</router-link>
                 <button @click="manualSaveChanges" :disabled="editorStore.isSaving" class="btn btn-primary">
-                  {{ editorStore.isSaving ? 'Guardando...' : 'Guardar Cambios' }}
+                  {{ editorStore.isSaving ? 'Guardando...' : 'Guardar' }}
                 </button>
-                <button @click="copyHtmlToClipboard" class="btn btn-success">Copiar HTML Final</button>
+                <button @click="copyHtmlToClipboard" class="btn btn-success">Copiar HTML</button>
+                <button @click="copyShareLink" class="btn btn-secondary">Compartir Enlace</button>
               </div>
             </div>
           </div>
@@ -100,8 +100,6 @@
     scheduleNextAutoSave()
   }
 
-  // frontend/src/views/EmailEditor.vue
-
   const handlePreviewLoad = () => {
     isPreviewReady = true
     updatePreviewContent()
@@ -150,9 +148,6 @@
     iframeDoc.addEventListener('click', handleInteraction)
     iframeDoc.addEventListener('dblclick', handleInteraction)
   }
-
-  // También necesitamos ajustar focusEditor para que acepte los dos argumentos
-  // frontend/src/views/EmailEditor.vue
 
   const focusEditor = (sectionId, contentKey) => {
     // 1. Construimos el identificador único que acabamos de crear en SectionEditor.vue
@@ -268,6 +263,22 @@
     })
 
     return finalHtmlSections.join('\n')
+  }
+
+  const copyShareLink = () => {
+    // Obtenemos la URL actual de la ventana del navegador
+    const link = window.location.href
+
+    // Usamos la API del portapapeles para copiar el enlace
+    navigator.clipboard
+      .writeText(link)
+      .then(() => {
+        // Notificamos al usuario que se copió con éxito
+        feedbackStore.show('¡Enlace de edición copiado al portapapeles!', 'success')
+      })
+      .catch(() => {
+        feedbackStore.show('Error al copiar el enlace.', 'error')
+      })
   }
 
   // FUNCIÓN para actualizar el store cuando una sección cambie

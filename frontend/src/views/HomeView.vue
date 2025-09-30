@@ -45,10 +45,6 @@
       <button @click="createNewEmail" :disabled="!selectedTemplateId || isCreatingEmail" class="btn btn-primary">
         {{ isCreatingEmail ? 'Creando...' : 'Crear Nuevo Correo Editable' }}
       </button>
-      <p v-if="newEmailUrl" class="text-success mt-3" style="word-break: break-all">
-        Enlace de edición:
-        <a :href="newEmailUrl" target="_blank">{{ newEmailUrl }}</a>
-      </p>
       <p v-if="creationError" class="text-danger mt-3">{{ creationError }}</p>
     </div>
   </div>
@@ -57,11 +53,13 @@
 <script setup>
   // frontend/src/views/HomeView.vue
   import { ref, onMounted, watch } from 'vue'
+  import { useRouter } from 'vue-router'
   import { useTemplateStore } from '../stores/templateStore.js'
   import { useEmailStore } from '../stores/emailStore.js'
   import { capitalizeFirstLetter, isValidUrl, getPlainTextFromHtml } from '../utils/helpers.js'
 
   // --- Instancias de Stores ---
+  const router = useRouter()
   const templateStore = useTemplateStore()
   const emailStore = useEmailStore()
 
@@ -70,7 +68,6 @@
   const initialContent = ref({})
   const initialContentErrors = ref({})
   const isCreatingEmail = ref(false)
-  const newEmailUrl = ref('')
   const creationError = ref(null)
   const LOREM_IPSUM_TITLE = 'Lorem Ipsum Dolor Sit Amet'
   const LOREM_IPSUM_PARAGRAPH =
@@ -147,7 +144,10 @@
     isCreatingEmail.value = true
     const result = await emailStore.createEmail(selectedTemplateId.value, initialContent.value)
     if (result.success) {
-      newEmailUrl.value = `${window.location.origin}/editar-correo/${result.uuid}`
+      router.push({
+        name: 'email-editor',
+        params: { uuid: result.uuid },
+      })
     } else {
       creationError.value = result.message
     }
