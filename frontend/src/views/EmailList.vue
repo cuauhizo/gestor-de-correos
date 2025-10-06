@@ -27,7 +27,7 @@
           </div>
           <div class="d-flex gap-2">
             <button @click="handleEditClick(email)" class="btn btn-primary btn-sm">Editar</button>
-            <button @click="deleteEmailClick(email.uuid)" class="btn btn-danger btn-sm">Eliminar</button>
+            <button v-if="authStore.isAdmin" @click="deleteEmailClick(email.uuid)" class="btn btn-danger btn-sm">Eliminar</button>
           </div>
         </li>
       </ul>
@@ -38,12 +38,14 @@
 <script setup>
   import { onMounted } from 'vue'
   import { useEmailStore } from '../stores/emailStore.js' // <-- Importamos el store
+  import { useAuthStore } from '../stores/auth.js'
   import { formatDate } from '../utils/helpers.js'
   import { useFeedbackStore } from '../stores/feedbackStore.js'
   import { useModalStore } from '../stores/modalStore.js'
 
   // --- Instancias ---
   const emailStore = useEmailStore()
+  const authStore = useAuthStore()
   const feedbackStore = useFeedbackStore()
   const modalStore = useModalStore()
 

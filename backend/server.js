@@ -17,6 +17,7 @@ const templateRoutes = require('./routes/templateRoutes')
 const emailRoutes = require('./routes/emailRoutes')
 const userRoutes = require('./routes/userRoutes')
 const sectionTemplateRoutes = require('./routes/sectionTemplateRoutes')
+const statsRoutes = require('./routes/statsRoutes')
 const app = express()
 const port = process.env.PORT || 3000
 
@@ -59,6 +60,7 @@ app.use('/api/templates', templateRoutes)
 app.use('/api/emails-editable', emailRoutes)
 app.use('/api/users', userRoutes)
 app.use('/api/section-templates', sectionTemplateRoutes)
+app.use('/api/stats', statsRoutes)
 // (Aquí usaremos las otras rutas)
 
 // Conectar a la base de datos e iniciar el servidor

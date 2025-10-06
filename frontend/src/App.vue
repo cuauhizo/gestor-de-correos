@@ -85,15 +85,18 @@
   <div class="bg-light min-vh-100">
     <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
       <div class="container-fluid">
-        <a class="navbar-brand" href="#">Gestor de Correos</a>
+        <a class="navbar-brand" href="/">Gestor de Correos</a>
         <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
           <span class="navbar-toggler-icon"></span>
         </button>
         <div class="collapse navbar-collapse" id="navbarNav">
           <ul class="navbar-nav">
             <template v-if="authStore.isAuthenticated">
-              <li class="nav-item" v-if="authStore.isAdmin">
+              <!-- <li class="nav-item" v-if="authStore.isAdmin">
                 <router-link to="/" class="nav-link" active-class="active">Crear Nuevo Correo</router-link>
+              </li> -->
+              <li class="nav-item" v-if="authStore.isAdmin">
+                <router-link to="/crear-correo" class="nav-link" active-class="active">Crear Nuevo Correo</router-link>
               </li>
               <li class="nav-item">
                 <router-link to="/lista-correos" class="nav-link" active-class="active">Ver Correos Guardados</router-link>

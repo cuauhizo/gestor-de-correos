@@ -11,36 +11,45 @@
         <div v-if="!editorStore.loading && !editorStore.error" class="row g-4">
           <div class="col-md-4">
             <div class="card p-3 h-100">
+              <div v-if="editorStore.isReadOnly" class="alert alert-warning">
+                <i-iwwa:alert />
+                Estás en modo de solo lectura. Otro usuario está editando este correo.
+                <div class="text-end">
+                  <button @click="handleForceUnlock" class="btn btn-sm btn-danger mt-2">Forzar Desbloqueo y Editar</button>
+                </div>
+              </div>
               <div class="d-flex justify-content-between align-items-center mb-3">
                 <h3 class="card-title text-center mb-0">Contenido Editable</h3>
                 <span :class="['badge', editorStore.autoSaveStatus.class]">{{ editorStore.autoSaveStatus.text }}</span>
               </div>
-              <div class="scroll">
-                <div class="text-center my-3">
-                  <button @click="isAddModalVisible = true" class="btn btn-outline-primary">
-                    <i-entypo:add-to-list />
-                    Añadir Sección
-                  </button>
-                  <AddSectionModal :is-visible="isAddModalVisible" @close="isAddModalVisible = false" />
+              <fieldset :disabled="editorStore.isReadOnly">
+                <div class="scroll">
+                  <div class="text-center my-3">
+                    <button @click="isAddModalVisible = true" class="btn btn-outline-primary">
+                      <i-entypo:add-to-list />
+                      Añadir Sección
+                    </button>
+                    <AddSectionModal :is-visible="isAddModalVisible" @close="isAddModalVisible = false" />
+                  </div>
+                  <SectionEditor
+                    v-for="(section, index) in editorStore.editableContent.sections"
+                    :key="section.id"
+                    :section="section"
+                    :is-first="index === 0"
+                    :is-last="index === editorStore.editableContent.sections.length - 1"
+                    @update:content="newContent => updateSectionContent(section.id, newContent)"
+                    @delete="deleteSection(section.id)"
+                    @move-up="moveSection(section.id, -1)"
+                    @move-down="moveSection(section.id, 1)" />
                 </div>
-                <SectionEditor
-                  v-for="(section, index) in editorStore.editableContent.sections"
-                  :key="section.id"
-                  :section="section"
-                  :is-first="index === 0"
-                  :is-last="index === editorStore.editableContent.sections.length - 1"
-                  @update:content="newContent => updateSectionContent(section.id, newContent)"
-                  @delete="deleteSection(section.id)"
-                  @move-up="moveSection(section.id, -1)"
-                  @move-down="moveSection(section.id, 1)" />
-              </div>
+              </fieldset>
               <div class="d-flex flex-wrap justify-content-center gap-1 mt-3">
                 <router-link to="/lista-correos" class="btn btn-danger">Cancelar</router-link>
                 <button @click="manualSaveChanges" :disabled="editorStore.isSaving" class="btn btn-primary">
                   {{ editorStore.isSaving ? 'Guardando...' : 'Guardar' }}
                 </button>
                 <button @click="copyHtmlToClipboard" class="btn btn-success">Copiar HTML</button>
-                <button @click="copyShareLink" class="btn btn-secondary">Compartir Enlace</button>
+                <button v-if="authStore.isAdmin" @click="copyShareLink" class="btn btn-secondary">Compartir Enlace</button>
               </div>
             </div>
           </div>
@@ -262,7 +271,9 @@
       return sectionHtml
     })
 
-    return finalHtmlSections.join('\n')
+    const joinedHtml = finalHtmlSections.join('\n')
+
+    return `<center>\n${joinedHtml}\n</center>`
   }
 
   const copyShareLink = () => {
@@ -311,6 +322,15 @@
     handleContentChange()
   }
   // --- FIN DE LA MODIFICACIÓN ---
+
+  const handleForceUnlock = async () => {
+    const result = await editorStore.forceUnlockAndReload(uuid)
+    if (result.success) {
+      feedbackStore.show(result.message, 'success')
+    } else {
+      feedbackStore.show(result.message, 'error')
+    }
+  }
 
   // --- Ciclo de Vida ---
   watch(
@@ -361,10 +381,13 @@
 
   onBeforeUnmount(async () => {
     clearTimeout(autoSaveTimeoutId)
-    if (editorStore.hasUnsavedChanges) {
-      await editorStore.saveEmail(uuid)
+    // Solo guardamos y desbloqueamos si NO estábamos en modo de solo lectura
+    if (!editorStore.isReadOnly) {
+      if (editorStore.hasUnsavedChanges) {
+        await editorStore.saveEmail(uuid)
+      }
+      await editorStore.unlockEmail(uuid)
     }
-    await editorStore.unlockEmail(uuid)
     editorStore.resetEditorState()
   })
 </script>

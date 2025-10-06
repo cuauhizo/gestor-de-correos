@@ -60,25 +60,13 @@ export const useEmailStore = defineStore('emails', () => {
 
   async function handleEdit(email) {
     try {
-      // Intento de bloqueo normal
-      await axios.post(`/api/emails-editable/${email.uuid}/lock`)
+      // Siempre intentamos entrar al editor.
+      // La lógica de si es "solo lectura" o no, ya la maneja el editorStore.
       router.push({ name: 'email-editor', params: { uuid: email.uuid } })
       return { success: true }
     } catch (err) {
-      if (err.response?.status === 409) {
-        // Si el correo está bloqueado, devolvemos el error para que el componente decida
-        if (authStore.isAdmin) {
-          if (confirm(`Este correo está bloqueado. Como administrador, ¿quieres forzar el desbloqueo?`)) {
-            return await forceUnlockAndEdit(email)
-          }
-          // Si el admin cancela, no hacemos nada
-          return { success: false, message: '' }
-        } else {
-          return { success: false, message: err.response.data.message }
-        }
-      }
-      // Otro tipo de error
-      return { success: false, message: 'Error al intentar editar. Intenta de nuevo más tarde.' }
+      // Este bloque ahora solo manejaría errores inesperados.
+      return { success: false, message: 'Error al intentar navegar al editor.' }
     }
   }
 

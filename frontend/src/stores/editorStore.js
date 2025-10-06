@@ -1,6 +1,7 @@
 // frontend/src/stores/editorStore.js
 import { defineStore } from 'pinia'
 import { ref, reactive } from 'vue'
+import { useAuthStore } from './auth'
 import axios from '../services/api'
 import { v4 as uuidv4 } from 'uuid'
 
@@ -15,6 +16,7 @@ export const useEditorStore = defineStore('editor', () => {
   const hasUnsavedChanges = ref(false)
   const sectionLibrary = ref([])
   const isLoadingLibrary = ref(false)
+  const isReadOnly = ref(false)
 
   const autoSaveStatus = reactive({
     text: 'Listo',
@@ -25,26 +27,40 @@ export const useEditorStore = defineStore('editor', () => {
   async function loadAndLockEmail(uuid) {
     loading.value = true
     error.value = null
+    isReadOnly.value = false // Reseteamos por defecto
+    const authStore = useAuthStore() // Obtenemos la instancia del auth store
+
     try {
+      // 1. Intentamos bloquear el correo
       await axios.post(`/api/emails-editable/${uuid}/lock`)
       isLocked.value = true
+    } catch (err) {
+      // 2. Si falla porque está bloqueado (409) Y somos admin...
+      if (err.response?.status === 409 && authStore.isAdmin) {
+        console.log('El correo está bloqueado, entrando en modo de solo lectura para el admin.')
+        isReadOnly.value = true
+        // No lanzamos un error, continuaremos para cargar los datos.
+      } else {
+        // Para cualquier otro error, o si no somos admin, fallamos.
+        error.value = err.response?.data?.message || 'Error al cargar el correo.'
+        if (err.response?.status === 409) {
+          return { success: false, isLockedError: true }
+        }
+        return { success: false }
+      }
+    }
 
+    try {
+      // 3. Cargamos el contenido del correo (esto se ejecuta siempre si no hubo un error fatal)
       const emailResponse = await axios.get(`/api/emails-editable/${uuid}`)
       const { template_id, content_json, template_name } = emailResponse.data
-
-      templateName.value = template_name
-      // CORRECCIÓN: Simplemente asignamos el content_json que ya viene con la estructura de secciones correcta.
       editableContent.value = content_json
+      templateName.value = template_name
 
-      // Cargamos la biblioteca de secciones
-      await fetchSectionLibrary()
-
+      await fetchSectionLibrary(template_id)
       return { success: true }
-    } catch (err) {
-      error.value = err.response?.data?.message || 'Error al cargar el correo.'
-      if (err.response?.status === 409) {
-        return { success: false, isLockedError: true }
-      }
+    } catch (loadErr) {
+      error.value = 'Error al cargar el contenido del correo.'
       return { success: false }
     } finally {
       loading.value = false
@@ -180,6 +196,23 @@ export const useEditorStore = defineStore('editor', () => {
     // La previsualización se actualizará reactivamente.
   }
 
+  async function forceUnlockAndReload(uuid) {
+    try {
+      // 1. Llama al endpoint para forzar el desbloqueo en el backend.
+      await axios.post(`/api/emails-editable/${uuid}/force-unlock`)
+
+      // 2. Si tiene éxito, vuelve a cargar el editor desde cero.
+      // La función loadAndLockEmail ahora tomará el bloqueo para nosotros.
+      await loadAndLockEmail(uuid)
+
+      // Devolvemos éxito para que el componente pueda mostrar una notificación.
+      return { success: true, message: '¡Control tomado! Ahora puedes editar.' }
+    } catch (err) {
+      console.error('Error al forzar el desbloqueo:', err)
+      return { success: false, message: 'No se pudo forzar el desbloqueo.' }
+    }
+  }
+
   return {
     loading,
     error,
@@ -191,10 +224,12 @@ export const useEditorStore = defineStore('editor', () => {
     autoSaveStatus,
     sectionLibrary,
     isLoadingLibrary,
+    isReadOnly,
     addSection,
     loadAndLockEmail,
     saveEmail,
     unlockEmail,
     resetEditorState,
+    forceUnlockAndReload,
   }
 })

@@ -15,6 +15,8 @@ import RegisterView from '../views/RegisterView.vue'
 import NotFound from '../views/NotFound.vue' // Vista para manejar rutas no encontradas (404)
 import UserManager from '../views/UserManager.vue'
 import SectionTemplateManager from '../views/SectionTemplateManager.vue'
+import DashboardView from '../views/DashboardView.vue'
+import CreateEmailView from '../views/HomeView.vue'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -22,10 +24,16 @@ const router = createRouter({
     // --- Rutas Protegidas ---
     // Estas rutas requieren que el usuario esté autenticado para ser accesibles.
     {
-      path: '/',
-      name: 'home',
-      component: HomeView,
-      meta: { requiresAuth: true, requiresAdmin: true }, // Solo admin puede ver la página de creación de correos
+      path: '/', // La raíz ahora es el dashboard
+      name: 'dashboard',
+      component: DashboardView,
+      meta: { requiresAuth: true },
+    },
+    {
+      path: '/crear-correo', // La antigua página de inicio ahora vive aquí
+      name: 'create-email',
+      component: CreateEmailView,
+      meta: { requiresAuth: true, requiresAdmin: true },
     },
     {
       path: '/editar-correo/:uuid',
