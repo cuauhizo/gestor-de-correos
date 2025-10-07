@@ -44,7 +44,7 @@
                 </div>
               </fieldset>
               <div class="d-flex flex-wrap justify-content-center gap-1 mt-3">
-                <router-link to="/lista-correos" class="btn btn-danger">Cancelar</router-link>
+                <button @click="handleCancel" class="btn btn-danger">Cancelar</button>
                 <button @click="manualSaveChanges" :disabled="editorStore.isSaving" class="btn btn-primary">
                   {{ editorStore.isSaving ? 'Guardando...' : 'Guardar' }}
                 </button>
@@ -330,6 +330,13 @@
     } else {
       feedbackStore.show(result.message, 'error')
     }
+  }
+
+  const handleCancel = async () => {
+    // 1. Llama explícitamente a la función de desbloqueo del store
+    await editorStore.unlockEmail(uuid)
+    // 2. Una vez que se ha desbloqueado, redirige al usuario
+    router.push('/lista-correos')
   }
 
   // --- Ciclo de Vida ---

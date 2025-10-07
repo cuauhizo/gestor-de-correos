@@ -5,7 +5,7 @@ const { parseTemplateHTML } = require('../utils/templateParser')
 
 exports.getAllEmails = async () => {
   const [rows] = await pool.query(`
-        SELECT e.uuid, e.template_id, t.name as template_name, e.created_at, e.updated_at,
+        SELECT e.uuid, e.is_locked, e.template_id, t.name as template_name, e.created_at, e.updated_at,
                uc.username AS creator_username, um.username AS last_modifier_username
         FROM emails_editable e
         LEFT JOIN templates t ON e.template_id = t.id

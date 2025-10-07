@@ -82,6 +82,22 @@ export const useEmailStore = defineStore('emails', () => {
     }
   }
 
+  async function forceUnlock(uuid) {
+    try {
+      await axios.post(`/api/emails-editable/${uuid}/force-unlock`)
+
+      // Si tiene éxito, actualizamos el estado local para que la UI reaccione
+      const email = emails.value.find(e => e.uuid === uuid)
+      if (email) {
+        email.is_locked = false
+      }
+
+      return { success: true, message: 'Correo desbloqueado exitosamente.' }
+    } catch (err) {
+      return { success: false, message: 'No se pudo forzar el desbloqueo.' }
+    }
+  }
+
   // --- Exponemos el estado y las acciones ---
   return {
     emails,
@@ -91,5 +107,6 @@ export const useEmailStore = defineStore('emails', () => {
     createEmail,
     deleteEmail,
     handleEdit,
+    forceUnlock,
   }
 })
