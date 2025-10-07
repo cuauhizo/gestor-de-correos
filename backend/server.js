@@ -22,10 +22,6 @@ const app = express()
 const port = process.env.PORT || 3000
 
 // Rutas (Endpoints API)
-app.get('/', (req, res) => {
-  res.send('API del Editor de Correos funcionando!')
-})
-
 // --- Middleware Global ---
 const allowedOrigins = [
   'https://mailcreator.tolkogroup.com', // Tu dominio de producción
@@ -62,6 +58,10 @@ app.use('/api/users', userRoutes)
 app.use('/api/section-templates', sectionTemplateRoutes)
 app.use('/api/stats', statsRoutes)
 // (Aquí usaremos las otras rutas)
+
+app.get('/', (req, res) => {
+  res.send('API del Editor de Correos funcionando!')
+})
 
 // Conectar a la base de datos e iniciar el servidor
 async function startServer() {

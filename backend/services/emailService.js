@@ -24,12 +24,6 @@ exports.getEmailByUuid = async uuid => {
   return rows[0]
 }
 
-exports.old_createEmail = async (template_id, initial_content, user_id) => {
-  const uuid = uuidv4()
-  await pool.execute('INSERT INTO emails_editable (uuid, template_id, content_json, user_id, is_locked, locked_by_user_id) VALUES (?, ?, ?, ?, 1, ?)', [uuid, template_id, JSON.stringify(initial_content), user_id, user_id])
-  return uuid
-}
-
 exports.createEmail = async (template_id, initial_content, user_id) => {
   const uuid = uuidv4()
 
