@@ -106,7 +106,6 @@ export const useEditorStore = defineStore('editor', () => {
     }
   }
 
-  // CORRECCIÓN: Asegúrate de que el reset también use la nueva estructura.
   function resetEditorState() {
     loading.value = true
     error.value = null
@@ -133,7 +132,7 @@ export const useEditorStore = defineStore('editor', () => {
     }
   }
 
-  function addSection(sectionTemplate) {
+  function old_addSection(sectionTemplate) {
     if (!sectionTemplate || !sectionTemplate.html_content) {
       console.error('Plantilla de sección inválida:', sectionTemplate)
       return
@@ -142,6 +141,7 @@ export const useEditorStore = defineStore('editor', () => {
     // --- INICIO DE LA LÓGICA DE LOREM IPSUM ---
     const LOREM_IPSUM_TITLE = 'Lorem Ipsum Dolor Sit Amet'
     const LOREM_IPSUM_PARAGRAPH = 'Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.'
+    const PLACEHOLDER_URL = 'https://www.ejemplo.com/destino'
 
     const newContent = {}
     const sectionHTML = sectionTemplate.html_content
@@ -149,9 +149,20 @@ export const useEditorStore = defineStore('editor', () => {
     // 1. Parseo de texto con relleno Lorem Ipsum
     const textRegex = /{{\s*([a-zA-Z0-9_]+)\s*}}/g
     let textMatch
+    // while ((textMatch = textRegex.exec(sectionHTML)) !== null) {
+    //   const key = textMatch[1].trim()
+    //   if (key.toLowerCase().includes('titulo')) {
+    //     newContent[key] = `${LOREM_IPSUM_TITLE}`
+    //   } else {
+    //     newContent[key] = `${LOREM_IPSUM_PARAGRAPH}`
+    //   }
+    // }
     while ((textMatch = textRegex.exec(sectionHTML)) !== null) {
       const key = textMatch[1].trim()
-      if (key.toLowerCase().includes('titulo')) {
+      // Evitamos rellenar si ya lo hemos hecho con el attributeRegex
+      if (key.toLowerCase().includes('enlace') || key.toLowerCase().endsWith('_url')) {
+        newContent[key] = PLACEHOLDER_URL
+      } else if (key.toLowerCase().includes('titulo')) {
         newContent[key] = `${LOREM_IPSUM_TITLE}`
       } else {
         newContent[key] = `${LOREM_IPSUM_PARAGRAPH}`
@@ -183,10 +194,97 @@ export const useEditorStore = defineStore('editor', () => {
     handleContentChange()
   }
 
-  // No olvides añadir handleContentChange al return del store si no lo has hecho
-  // Esta función debe existir en tu EmailEditor.vue, pero necesitamos una referencia a ella o una
-  // forma de emitir el evento de cambio desde el store.
-  // Por ahora, lo más simple es replicar la lógica directamente en el store.
+  // frontend/src/stores/editorStore.js
+
+  // (Asegúrate de tener 'uuidv4' importado al principio de tu archivo)
+  // import { v4 as uuidv4 } from 'uuid';
+
+  function addSection(sectionTemplate) {
+    // 1. Verificación de seguridad
+    if (!sectionTemplate || !sectionTemplate.html_content) {
+      console.error('Se intentó añadir una plantilla de sección inválida:', sectionTemplate)
+      return
+    }
+
+    // --- Definición del contenido de relleno ---
+    const LOREM_IPSUM_TITLE = 'Lorem Ipsum Dolor Sit Amet'
+    const LOREM_IPSUM_PARAGRAPH = 'Lorem ipsum dolor sit amet, consectetur adipiscing elit.'
+    const PLACEHOLDER_URL = 'https://www.ejemplo.com/destino'
+    const PLACEHOLDER_IMG_URL = 'https://placehold.co/600x400'
+
+    const newContent = {}
+    const sectionHTML = sectionTemplate.html_content
+
+    // --- 2. Parseo del HTML de la sección ---
+
+    // A. Parsear atributos editables (ej: data-editor-attribute="href" href="{{banner_enlace}}")
+    // Esta regex busca placeholders que están *dentro* de atributos HTML
+    const attributeRegex = /data-editor-attribute="[^"]+"\s*[^>]*?\s*\w+="{{\s*([a-zA-Z0-9_]+)\s*}}"/g
+    let attributeMatch
+    while ((attributeMatch = attributeRegex.exec(sectionHTML)) !== null) {
+      const placeholderKey = attributeMatch[1] // ej: 'banner_enlace'
+      newContent[placeholderKey] = PLACEHOLDER_URL
+    }
+
+    // B. Parsear placeholders de texto (ej: {{titulo_principal}})
+    const textRegex = /{{\s*([a-zA-Z0-9_]+)\s*}}/g
+    let textMatch
+    while ((textMatch = textRegex.exec(sectionHTML)) !== null) {
+      const key = textMatch[1].trim()
+
+      // Solo rellenamos si no fue ya rellenado por el parser de atributos
+      if (newContent[key] === undefined) {
+        if (key.toLowerCase().includes('enlace') || key.toLowerCase().endsWith('_url')) {
+          newContent[key] = PLACEHOLDER_URL
+        } else if (key.toLowerCase().includes('titulo')) {
+          newContent[key] = `${LOREM_IPSUM_TITLE}`
+        } else {
+          newContent[key] = `${LOREM_IPSUM_PARAGRAPH}`
+        }
+      }
+    }
+
+    // C. Parsear imágenes (<img>)
+    const imgRegex = /<img[^>]*>/g
+
+    // Contamos el total de imágenes que YA existen en el correo para evitar colisiones
+    let globalImgIndex = editableContent.value.sections.reduce((count, sec) => {
+      return count + Object.keys(sec.content).filter(k => k.startsWith('image_')).length
+    }, 0)
+
+    const imagesInThisSection = sectionHTML.match(imgRegex) || []
+    imagesInThisSection.forEach(() => {
+      newContent[`image_${globalImgIndex}`] = PLACEHOLDER_IMG_URL
+      globalImgIndex++ // Incrementamos el contador global
+    })
+
+    // --- 3. Construir y añadir la nueva sección ---
+    const newSection = {
+      id: uuidv4(),
+      type: sectionTemplate.type_key,
+      html: sectionTemplate.html_content,
+      content: newContent, // El objeto que acabamos de construir
+    }
+
+    editableContent.value.sections.push(newSection)
+
+    // 4. Marcar que hay cambios sin guardar (para el autoguardado)
+    if (!hasUnsavedChanges.value) {
+      autoSaveStatus.text = 'Cambios sin guardar'
+      autoSaveStatus.class = 'bg-warning'
+    }
+    hasUnsavedChanges.value = true
+  }
+
+  function updateSectionContent(sectionId, contentKey, newValue) {
+    const section = editableContent.value.sections.find(s => s.id === sectionId)
+
+    if (section) {
+      section.content[contentKey] = newValue
+      handleContentChange()
+    }
+  }
+
   function handleContentChange() {
     if (!hasUnsavedChanges.value) {
       autoSaveStatus.text = 'Cambios sin guardar'
@@ -231,5 +329,6 @@ export const useEditorStore = defineStore('editor', () => {
     unlockEmail,
     resetEditorState,
     forceUnlockAndReload,
+    updateSectionContent,
   }
 })

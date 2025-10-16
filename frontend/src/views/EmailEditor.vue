@@ -18,12 +18,29 @@
                   <button @click="handleForceUnlock" class="btn btn-sm btn-danger mt-2">Forzar Desbloqueo y Editar</button>
                 </div>
               </div>
-              <div class="d-flex justify-content-between align-items-center mb-3">
+              <div class="d-flex justify-content-between align-items-center mb-2">
                 <h3 class="card-title text-center mb-0">Contenido Editable</h3>
                 <span :class="['badge', editorStore.autoSaveStatus.class]">{{ editorStore.autoSaveStatus.text }}</span>
               </div>
+              <div class="mb-3">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                  <button @click="isAddModalVisible = true" class="btn btn-outline-primary">
+                    <i-entypo:add-to-list />
+                    Añadir Sección
+                  </button>
+                  <div class="btn-group btn-group-sm">
+                    <button @click="collapseAll" class="btn btn-outline-secondary" title="Colapsar todo">
+                      <i-bi-arrows-collapse />
+                    </button>
+                    <button @click="expandAll" class="btn btn-outline-secondary" title="Expandir todo">
+                      <i-bi-arrows-expand />
+                    </button>
+                  </div>
+                </div>
+                <AddSectionModal :is-visible="isAddModalVisible" @close="isAddModalVisible = false" />
+              </div>
               <fieldset :disabled="editorStore.isReadOnly">
-                <div class="scroll">
+                <!-- <div class="scroll">
                   <div class="text-center my-3">
                     <button @click="isAddModalVisible = true" class="btn btn-outline-primary">
                       <i-entypo:add-to-list />
@@ -41,6 +58,21 @@
                     @delete="deleteSection(section.id)"
                     @move-up="moveSection(section.id, -1)"
                     @move-down="moveSection(section.id, 1)" />
+                </div> -->
+
+                <div class="scroll">
+                  <draggable v-model="editorStore.editableContent.sections" item-key="id" handle=".drag-handle" @end="handleContentChange" ghost-class="ghost">
+                    <template #item="{ element: section, index }">
+                      <SectionEditor
+                        :ref="
+                          el => {
+                            if (el) sectionEditorRefs[index] = el
+                          }
+                        "
+                        :section="section"
+                        @delete="deleteSection(section.id)" />
+                    </template>
+                  </draggable>
                 </div>
               </fieldset>
               <div class="d-flex flex-wrap justify-content-center gap-1 mt-3">
@@ -75,6 +107,7 @@
   import { useAuthStore } from '../stores/auth.js'
   import { useFeedbackStore } from '../stores/feedbackStore.js'
   import TiptapEditor from '../components/TiptapEditor.vue'
+  import draggable from 'vuedraggable'
   import SectionEditor from '../components/SectionEditor.vue'
   import { capitalizeFirstLetter, getPlainTextFromHtml, isValidUrl } from '../utils/helpers.js'
   import AddSectionModal from '../components/AddSectionModal.vue'
@@ -87,6 +120,7 @@
   const feedbackStore = useFeedbackStore()
   const uuid = route.params.uuid
   const isAddModalVisible = ref(false)
+  const sectionEditorRefs = ref([])
 
   // --- Refs para el DOM y Timers ---
   const previewIframe = ref(null)
@@ -210,7 +244,7 @@
         await editorStore.saveEmail(uuid)
       }
       scheduleNextAutoSave()
-    }, 10000) // 10 segundos
+    }, 20000) // 20 segundos
   }
 
   const copyHtmlToClipboard = () => {
@@ -256,7 +290,7 @@
         if (!key.startsWith('image_')) {
           const rawContent = section.content[key] || ''
           const placeholderRegex = new RegExp(`{{\\s*${key}\\s*}}`, 'g')
-          if (key.includes('enlace_')) {
+          if (key.includes('enlace')) {
             sectionHtml = sectionHtml.replace(placeholderRegex, encodeURI(rawContent))
           } else {
             const plainText = getPlainTextFromHtml(rawContent)
@@ -307,20 +341,20 @@
     handleContentChange()
   }
 
-  const moveSection = (sectionId, direction) => {
-    const sections = editorStore.editableContent.sections
-    const index = sections.findIndex(s => s.id === sectionId)
+  // const moveSection = (sectionId, direction) => {
+  //   const sections = editorStore.editableContent.sections
+  //   const index = sections.findIndex(s => s.id === sectionId)
 
-    if (index === -1) return
+  //   if (index === -1) return
 
-    const newIndex = index + direction
+  //   const newIndex = index + direction
 
-    // Asegurarnos de no movernos fuera de los límites del array
-    if (newIndex < 0 || newIndex >= sections.length) return // Intercambiamos los elementos en el array
-    ;[sections[index], sections[newIndex]] = [sections[newIndex], sections[index]]
+  //   // Asegurarnos de no movernos fuera de los límites del array
+  //   if (newIndex < 0 || newIndex >= sections.length) return // Intercambiamos los elementos en el array
+  //   ;[sections[index], sections[newIndex]] = [sections[newIndex], sections[index]]
 
-    handleContentChange()
-  }
+  //   handleContentChange()
+  // }
   // --- FIN DE LA MODIFICACIÓN ---
 
   const handleForceUnlock = async () => {
@@ -337,6 +371,14 @@
     await editorStore.unlockEmail(uuid)
     // 2. Una vez que se ha desbloqueado, redirige al usuario
     router.push('/lista-correos')
+  }
+
+  const collapseAll = () => {
+    sectionEditorRefs.value.forEach(comp => comp.setCollapsed(true))
+  }
+
+  const expandAll = () => {
+    sectionEditorRefs.value.forEach(comp => comp.setCollapsed(false))
   }
 
   // --- Ciclo de Vida ---
@@ -397,6 +439,49 @@
     }
     editorStore.resetEditorState()
   })
+
+  // frontend/src/views/EmailEditor.vue
+
+  const renderedHtml = computed(() => {
+    let currentHtml = editorStore.currentTemplateHtml
+
+    // Asegúrate de que el editorStore.editableContent y editorStore.currentTemplateHtml no sean nulos
+    if (!editorStore.editableContent || !currentHtml) {
+      return ''
+    }
+
+    const sectionsContent = editorStore.editableContent.sections.reduce((acc, section) => {
+      return { ...acc, ...section.content }
+    }, {})
+
+    // Esta expresión regular ahora busca tanto placeholders en el contenido como en atributos con data-editor-attribute
+    // El nuevo patrón para atributos es (data-editor-attribute="([^"]+)"\s*[^>]*?\s*)?(\w+)="{{\s*([a-zA-Z0-9_]+)\s*}}"
+    const replaceRegex = /(data-editor-key="([^"]+)"[^>]*?)?<([^>]+)>(.*?){{\s*([a-zA-Z0-9_]+)\s*}}(.*?)</g
+    // O si quieres algo más específico para atributos:
+    const attributeReplaceRegex = /(data-editor-attribute="([^"]+)")([^>]*?)(\w+)="{{\s*([a-zA-Z0-9_]+)\s*}}"/g
+
+    // 1. Reemplazar placeholders en atributos (como href)
+    currentHtml = currentHtml.replace(attributeReplaceRegex, (match, dataAttrPart, attrKey, restOfTag, attributeName, placeholderKey) => {
+      const replacementValue = sectionsContent[placeholderKey] || ''
+      // Reconstruimos el atributo: data-editor-attribute="href" href="VALOR_NUEVO"
+      return `${dataAttrPart}${restOfTag}${attributeName}="${replacementValue}"`
+    })
+
+    // 2. Reemplazar placeholders de texto y atributos data-editor-key (para imágenes)
+    currentHtml = currentHtml.replace(/({{\s*([a-zA-Z0-9_]+)\s*}})|(data-editor-key="([^"]+)"[^>]+src="([^"]+)")/g, (match, placeholderMatch, placeholderKey, imgMatch, imgDataKey, imgSrc) => {
+      if (placeholderKey) {
+        // Es un placeholder de texto
+        return sectionsContent[placeholderKey] || ''
+      } else if (imgDataKey && imgSrc) {
+        // Es una imagen con data-editor-key
+        const replacementSrc = sectionsContent[imgDataKey] || imgSrc // Usa el src del contenido editable o el original
+        return `data-editor-key="${imgDataKey}" src="${replacementSrc}"` // Reconstruye el atributo src
+      }
+      return match // Si no es ninguno, devuelve el match original
+    })
+
+    return currentHtml
+  })
 </script>
 
 <style scoped>
@@ -404,5 +489,19 @@
     max-height: 2100px;
     overflow-y: auto;
     padding-right: 10px;
+  }
+
+  .ghost {
+    opacity: 0.5;
+    background: #c8ebfb;
+    border: 1px dashed #0d6efd;
+  }
+
+  /* Estilo para el elemento que está siendo arrastrado */
+  .sortable-drag {
+    cursor: grabbing; /* Cambia el cursor para indicar que estás arrastrando */
+    box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+    transform: scale(1.02);
+    opacity: 0.9;
   }
 </style>

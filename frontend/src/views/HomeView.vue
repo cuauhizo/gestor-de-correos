@@ -26,7 +26,7 @@
           <template v-if="!key.startsWith('image_')">
             <label :for="`initial-${key}`" class="form-label">{{ formatLabel(key) }}:</label>
 
-            <template v-if="key.includes('enlace_')">
+            <template v-if="key.includes('_enlace')">
               <input type="url" :id="`initial-${key}`" v-model="initialContent[key]" placeholder="Introduce URL" :class="['form-control', { 'is-invalid': initialContentErrors[key] }]" />
             </template>
             <template v-else>
@@ -72,13 +72,14 @@
   const LOREM_IPSUM_TITLE = 'Lorem Ipsum Dolor Sit Amet'
   const LOREM_IPSUM_PARAGRAPH =
     'Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.'
+  const PLACEHOLDER_URL = 'https://www.ejemplo.com'
 
   // --- Funciones Auxiliares ---
   const getTemplateName = id => templateStore.templates.find(t => t.id === id)?.name || '...'
   const formatLabel = key => capitalizeFirstLetter(key.replace(/_/g, ' '))
 
   // --- Lógica del Componente ---
-  const fetchSelectedTemplateDetails = async () => {
+  const old_fetchSelectedTemplateDetails = async () => {
     if (!selectedTemplateId.value) return
     initialContent.value = {}
     try {
@@ -111,6 +112,60 @@
       }
       initialContent.value = newContent
     } catch (err) {
+      creationError.value = 'Error al cargar los detalles del template.'
+    }
+  }
+
+  const fetchSelectedTemplateDetails = async () => {
+    if (!selectedTemplateId.value) return
+    initialContent.value = {}
+    try {
+      const LOREM_IPSUM_TITLE = 'Lorem Ipsum Dolor Sit Amet'
+      const LOREM_IPSUM_PARAGRAPH = 'Lorem ipsum dolor sit amet, consectetur adipiscing elit.'
+      const PLACEHOLDER_URL = 'https://www.ejemplo.com/destino' // URL de ejemplo
+
+      const html_content = await templateStore.getTemplateContent(selectedTemplateId.value)
+      const newContent = {}
+
+      // --- AÑADE ESTA NUEVA EXPRESIÓN REGULAR PARA ATRIBUTOS EDITABLES ---
+      // Busca atributos como data-editor-attribute="href"
+      const attributeRegex = /data-editor-attribute="([^"]+)"\s*[^>]*?\s*([a-zA-Z0-9_]+)="{{\s*([a-zA-Z0-9_]+)\s*}}"/g
+      let attributeMatch
+      while ((attributeMatch = attributeRegex.exec(html_content)) !== null) {
+        const attributeName = attributeMatch[1] // 'href'
+        const placeholderKey = attributeMatch[3] // 'banner_enlace'
+        newContent[placeholderKey] = PLACEHOLDER_URL // Rellenamos con la URL de ejemplo
+      }
+      // --- FIN DE LA NUEVA EXPRESIÓN REGULAR ---
+
+      // Extraer placeholders de texto como {{variable}} (esta lógica sigue siendo válida para contenido de texto)
+      const textRegex = /{{\s*([a-zA-Z0-9_]+)\s*}}/g
+      let textMatch
+      while ((textMatch = textRegex.exec(html_content)) !== null) {
+        const key = textMatch[1]
+        // Evitamos rellenar si ya lo hemos hecho con el attributeRegex
+        if (newContent[key] === undefined) {
+          if (key.toLowerCase().includes('enlace') || key.toLowerCase().endsWith('_url')) {
+            newContent[key] = PLACEHOLDER_URL
+          } else if (key.toLowerCase().includes('titulo')) {
+            newContent[key] = `${LOREM_IPSUM_TITLE}`
+          } else {
+            newContent[key] = `${LOREM_IPSUM_PARAGRAPH}`
+          }
+        }
+      }
+
+      // Extraer URLs de imágenes (esta parte no cambia, pero asegúrate del data-editor-key)
+      // Asegúrate de que tus imágenes tengan data-editor-key="image_N" para ser editables
+      const imgRegex = /<img[^>]+data-editor-key="([^"]+)"[^>]+src="([^"]+)"/g
+      let imgMatch
+      while ((imgMatch = imgRegex.exec(html_content)) !== null) {
+        const key = imgMatch[1] // image_full_banner o image_0, image_1
+        newContent[key] = imgMatch[2]
+      }
+      initialContent.value = newContent
+    } catch (err) {
+      console.error('Error al cargar los detalles del template:', err)
       creationError.value = 'Error al cargar los detalles del template.'
     }
   }
