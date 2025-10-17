@@ -35,22 +35,23 @@ exports.createEmail = async (template_id, initial_content, user_id) => {
 
   const sections = parseTemplateHTML(templateHtml)
 
-  // --- INICIO DE LA CORRECCIÓN ---
-  // Rellenamos con el contenido inicial que viene del frontend de forma inteligente.
+  // 2. Rellenamos con el contenido inicial, PERO respetando las imágenes
   if (initial_content) {
-    // Iteramos sobre cada sección que hemos parseado del template.
     sections.forEach(section => {
-      // Iteramos sobre cada clave de contenido de esa sección (ej. "titulo_noticia").
       for (const key in section.content) {
-        // Si el contenido inicial que nos envió el frontend tiene un valor para esta clave...
-        if (initial_content[key]) {
-          // ...lo asignamos.
+        // SOLO sobrescribimos si la clave existe en initial_content
+        // Y SI NO es una clave de imagen (para preservar las URLs originales)
+        if (initial_content[key] && !key.startsWith('image_')) {
+          section.content[key] = initial_content[key]
+        }
+        // Si la clave es de imagen y está vacía en el parser (por si acaso),
+        // y existe en initial_content (poco probable, pero seguro), la tomamos.
+        else if (key.startsWith('image_') && !section.content[key] && initial_content[key]) {
           section.content[key] = initial_content[key]
         }
       }
     })
   }
-  // --- FIN DE LA CORRECCIÓN ---
 
   const finalContentObject = { sections }
 

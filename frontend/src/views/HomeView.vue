@@ -51,7 +51,6 @@
 </template>
 
 <script setup>
-  // frontend/src/views/HomeView.vue
   import { ref, onMounted, watch } from 'vue'
   import { useRouter } from 'vue-router'
   import { useTemplateStore } from '../stores/templateStore.js'
@@ -79,43 +78,6 @@
   const formatLabel = key => capitalizeFirstLetter(key.replace(/_/g, ' '))
 
   // --- Lógica del Componente ---
-  const old_fetchSelectedTemplateDetails = async () => {
-    if (!selectedTemplateId.value) return
-    initialContent.value = {}
-    try {
-      const html_content = await templateStore.getTemplateContent(selectedTemplateId.value)
-      const newContent = {}
-
-      // Extraer placeholders de texto como {{variable}}
-      const textRegex = /{{\s*([a-zA-Z0-9_]+)\s*}}/g
-      let textMatch
-      while ((textMatch = textRegex.exec(html_content)) !== null) {
-        const key = textMatch[1]
-        // Si la clave del placeholder incluye "titulo", usamos el texto corto.
-        // Si no, usamos el párrafo largo.
-        if (key.toLowerCase().includes('titulo')) {
-          newContent[key] = `${LOREM_IPSUM_TITLE}`
-        } else {
-          newContent[key] = `${LOREM_IPSUM_PARAGRAPH}`
-        }
-      }
-
-      // Extraer URLs de imágenes (esta parte no cambia)
-      const imgRegex = /<img[^>]+src="([^"]+)"/g
-      let imgMatch
-      let imgIndex = 0
-      while ((imgMatch = imgRegex.exec(html_content)) !== null) {
-        const key = `image_${imgIndex}`
-        // Mantenemos la URL por defecto que viene en el template
-        newContent[key] = imgMatch[1]
-        imgIndex++
-      }
-      initialContent.value = newContent
-    } catch (err) {
-      creationError.value = 'Error al cargar los detalles del template.'
-    }
-  }
-
   const fetchSelectedTemplateDetails = async () => {
     if (!selectedTemplateId.value) return
     initialContent.value = {}
@@ -127,7 +89,6 @@
       const html_content = await templateStore.getTemplateContent(selectedTemplateId.value)
       const newContent = {}
 
-      // --- AÑADE ESTA NUEVA EXPRESIÓN REGULAR PARA ATRIBUTOS EDITABLES ---
       // Busca atributos como data-editor-attribute="href"
       const attributeRegex = /data-editor-attribute="([^"]+)"\s*[^>]*?\s*([a-zA-Z0-9_]+)="{{\s*([a-zA-Z0-9_]+)\s*}}"/g
       let attributeMatch
@@ -136,7 +97,6 @@
         const placeholderKey = attributeMatch[3] // 'banner_enlace'
         newContent[placeholderKey] = PLACEHOLDER_URL // Rellenamos con la URL de ejemplo
       }
-      // --- FIN DE LA NUEVA EXPRESIÓN REGULAR ---
 
       // Extraer placeholders de texto como {{variable}} (esta lógica sigue siendo válida para contenido de texto)
       const textRegex = /{{\s*([a-zA-Z0-9_]+)\s*}}/g

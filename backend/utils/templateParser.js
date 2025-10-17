@@ -1,6 +1,6 @@
 // backend/utils/templateParser.js
 const { v4: uuidv4 } = require('uuid')
-const { parse } = require('node-html-parser') // <-- IMPORTAMOS EL NUEVO PARSER
+const { parse } = require('node-html-parser')
 
 function parseTemplateHTML(htmlContent) {
   const sections = []
@@ -15,7 +15,7 @@ function parseTemplateHTML(htmlContent) {
   sectionElements.forEach(sectionNode => {
     // Solo procesamos las tablas que son hijas directas del cuerpo principal,
     // para ignorar las tablas anidadas.
-    if (sectionNode.tagName === 'TABLE' && (sectionNode.parentNode.tagName === 'BODY' || sectionNode.parentNode.tagName === 'CENTER')) {
+    if (sectionNode.tagName === 'TABLE') {
       const sectionType = sectionNode.getAttribute('data-section-type')
       const sectionHTML = sectionNode.outerHTML // Obtenemos el HTML completo de la sección
       const content = {}
@@ -29,9 +29,9 @@ function parseTemplateHTML(htmlContent) {
 
       // 4. Extraer imágenes
       const images = sectionNode.querySelectorAll('img')
-      images.forEach(() => {
+      images.forEach(imgNode => {
         const imageKey = `image_${imageCounter}`
-        content[imageKey] = ''
+        content[imageKey] = imgNode.getAttribute('src') || ''
         imageCounter++
       })
 

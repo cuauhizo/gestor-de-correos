@@ -43,23 +43,47 @@ export const useEditorStore = defineStore('editor', () => {
       } else {
         // Para cualquier otro error, o si no somos admin, fallamos.
         error.value = err.response?.data?.message || 'Error al cargar el correo.'
-        if (err.response?.status === 409) {
-          return { success: false, isLockedError: true }
-        }
+        if (err.response?.status === 409) return { success: false, isLockedError: true }
         return { success: false }
       }
     }
 
     try {
-      // 3. Cargamos el contenido del correo (esto se ejecuta siempre si no hubo un error fatal)
+      // 1. Obtenemos los datos del correo
       const emailResponse = await axios.get(`/api/emails-editable/${uuid}`)
       const { template_id, content_json, template_name } = emailResponse.data
-      editableContent.value = content_json
       templateName.value = template_name
 
-      await fetchSectionLibrary(template_id)
+      if (Array.isArray(content_json.sections)) {
+        // A. Es el formato NUEVO ({ sections: [...] })
+        // Lo usamos tal cual.
+        editableContent.value = content_json
+      } else {
+        // B. Es el formato ANTIGUO ({ "titulo": ... })
+        console.warn('Detectado un correo con formato antiguo. Migrando a bloque único...')
+
+        // 1. Cargamos el HTML del template maestro original
+        const templateResponse = await axios.get(`/api/templates/${template_id}`)
+        const templateHtml = templateResponse.data.html_content
+
+        // 2. Creamos UN solo bloque "Heredado" que contiene TODO el contenido antiguo
+        const legacySection = {
+          id: uuidv4(),
+          type: 'contenido-heredado',
+          html: templateHtml, // El HTML de este bloque es el template maestro completo
+          content: content_json, // El contenido es el objeto plano antiguo
+        }
+
+        // 3. Asignamos la nueva estructura
+        editableContent.value = { sections: [legacySection] }
+      }
+
+      // 3. Cargamos la biblioteca de secciones (para poder añadir nuevos bloques)
+      await fetchSectionLibrary() // Asumiendo que fetchSectionLibrary ya no necesita template_id
+
       return { success: true }
     } catch (loadErr) {
+      console.error('Error cargando datos:', loadErr)
       error.value = 'Error al cargar el contenido del correo.'
       return { success: false }
     } finally {
@@ -132,73 +156,6 @@ export const useEditorStore = defineStore('editor', () => {
     }
   }
 
-  function old_addSection(sectionTemplate) {
-    if (!sectionTemplate || !sectionTemplate.html_content) {
-      console.error('Plantilla de sección inválida:', sectionTemplate)
-      return
-    }
-
-    // --- INICIO DE LA LÓGICA DE LOREM IPSUM ---
-    const LOREM_IPSUM_TITLE = 'Lorem Ipsum Dolor Sit Amet'
-    const LOREM_IPSUM_PARAGRAPH = 'Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.'
-    const PLACEHOLDER_URL = 'https://www.ejemplo.com/destino'
-
-    const newContent = {}
-    const sectionHTML = sectionTemplate.html_content
-
-    // 1. Parseo de texto con relleno Lorem Ipsum
-    const textRegex = /{{\s*([a-zA-Z0-9_]+)\s*}}/g
-    let textMatch
-    // while ((textMatch = textRegex.exec(sectionHTML)) !== null) {
-    //   const key = textMatch[1].trim()
-    //   if (key.toLowerCase().includes('titulo')) {
-    //     newContent[key] = `${LOREM_IPSUM_TITLE}`
-    //   } else {
-    //     newContent[key] = `${LOREM_IPSUM_PARAGRAPH}`
-    //   }
-    // }
-    while ((textMatch = textRegex.exec(sectionHTML)) !== null) {
-      const key = textMatch[1].trim()
-      // Evitamos rellenar si ya lo hemos hecho con el attributeRegex
-      if (key.toLowerCase().includes('enlace') || key.toLowerCase().endsWith('_url')) {
-        newContent[key] = PLACEHOLDER_URL
-      } else if (key.toLowerCase().includes('titulo')) {
-        newContent[key] = `${LOREM_IPSUM_TITLE}`
-      } else {
-        newContent[key] = `${LOREM_IPSUM_PARAGRAPH}`
-      }
-    }
-    // --- FIN DE LA LÓGICA DE LOREM IPSUM ---
-
-    // 2. Parseo de imágenes (se queda igual)
-    const imgRegex = /<img[^>]*>/g
-    let globalImgIndex = editableContent.value.sections.reduce((count, sec) => {
-      return count + Object.keys(sec.content).filter(k => k.startsWith('image_')).length
-    }, 0)
-
-    const images = sectionHTML.match(imgRegex) || []
-    images.forEach(() => {
-      // Aquí podrías poner una URL de imagen de placeholder si quisieras
-      newContent[`image_${globalImgIndex}`] = 'https://placehold.co/600x300'
-      globalImgIndex++
-    })
-
-    const newSection = {
-      id: uuidv4(),
-      type: sectionTemplate.type_key,
-      html: sectionTemplate.html_content,
-      content: newContent,
-    }
-
-    editableContent.value.sections.push(newSection)
-    handleContentChange()
-  }
-
-  // frontend/src/stores/editorStore.js
-
-  // (Asegúrate de tener 'uuidv4' importado al principio de tu archivo)
-  // import { v4 as uuidv4 } from 'uuid';
-
   function addSection(sectionTemplate) {
     // 1. Verificación de seguridad
     if (!sectionTemplate || !sectionTemplate.html_content) {
@@ -210,7 +167,7 @@ export const useEditorStore = defineStore('editor', () => {
     const LOREM_IPSUM_TITLE = 'Lorem Ipsum Dolor Sit Amet'
     const LOREM_IPSUM_PARAGRAPH = 'Lorem ipsum dolor sit amet, consectetur adipiscing elit.'
     const PLACEHOLDER_URL = 'https://www.ejemplo.com/destino'
-    const PLACEHOLDER_IMG_URL = 'https://placehold.co/600x400'
+    const PLACEHOLDER_IMG_URL = 'https://placehold.co/600x300'
 
     const newContent = {}
     const sectionHTML = sectionTemplate.html_content

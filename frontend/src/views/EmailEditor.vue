@@ -40,26 +40,6 @@
                 <AddSectionModal :is-visible="isAddModalVisible" @close="isAddModalVisible = false" />
               </div>
               <fieldset :disabled="editorStore.isReadOnly">
-                <!-- <div class="scroll">
-                  <div class="text-center my-3">
-                    <button @click="isAddModalVisible = true" class="btn btn-outline-primary">
-                      <i-entypo:add-to-list />
-                      Añadir Sección
-                    </button>
-                    <AddSectionModal :is-visible="isAddModalVisible" @close="isAddModalVisible = false" />
-                  </div>
-                  <SectionEditor
-                    v-for="(section, index) in editorStore.editableContent.sections"
-                    :key="section.id"
-                    :section="section"
-                    :is-first="index === 0"
-                    :is-last="index === editorStore.editableContent.sections.length - 1"
-                    @update:content="newContent => updateSectionContent(section.id, newContent)"
-                    @delete="deleteSection(section.id)"
-                    @move-up="moveSection(section.id, -1)"
-                    @move-down="moveSection(section.id, 1)" />
-                </div> -->
-
                 <div class="scroll">
                   <draggable v-model="editorStore.editableContent.sections" item-key="id" handle=".drag-handle" @end="handleContentChange" ghost-class="ghost">
                     <template #item="{ element: section, index }">
@@ -106,10 +86,9 @@
   import { useEditorStore } from '../stores/editorStore.js'
   import { useAuthStore } from '../stores/auth.js'
   import { useFeedbackStore } from '../stores/feedbackStore.js'
-  import TiptapEditor from '../components/TiptapEditor.vue'
   import draggable from 'vuedraggable'
   import SectionEditor from '../components/SectionEditor.vue'
-  import { capitalizeFirstLetter, getPlainTextFromHtml, isValidUrl } from '../utils/helpers.js'
+  import { getPlainTextFromHtml } from '../utils/helpers.js'
   import AddSectionModal from '../components/AddSectionModal.vue'
 
   // --- Instancias ---
@@ -154,57 +133,69 @@
       while (target && target !== iframeDoc.body) {
         const keyData = target.getAttribute('data-editor-key')
         if (keyData) {
-          // --- INICIO DE LA CORRECCIÓN ---
           const keyParts = keyData.split('-')
-          // La clave del contenido (ej. 'image_0') siempre es la última parte.
           const contentKey = keyParts.pop()
-          // El ID de la sección es todo lo demás, unido de nuevo por guiones.
           const sectionId = keyParts.join('-')
-          // --- FIN DE LA CORRECCIÓN ---
 
-          if (!sectionId || !contentKey) return // Salir si algo salió mal
+          if (!sectionId || !contentKey) return
 
+          // Lógica para imágenes (sin cambios)
           if (target.tagName === 'IMG' && authStore.isAdmin) {
             event.preventDefault()
-
             const section = editorStore.editableContent.sections.find(s => s.id === sectionId)
             if (section) {
               const currentUrl = section.content[contentKey] || ''
               const newUrl = prompt('Introduce la nueva URL de la imagen:', currentUrl)
               if (newUrl !== null && newUrl !== currentUrl) {
-                section.content[contentKey] = newUrl
-                handleContentChange()
+                // Llamamos a la acción del store para asegurar reactividad
+                editorStore.updateSectionContent(sectionId, contentKey, newUrl)
               }
             }
-          } else if (target.tagName !== 'IMG') {
-            // focusEditor(sectionId, contentKey) // Ajustamos focusEditor para el futuro
-            // Asegúrate de que pasas ambos, sectionId y contentKey
-            focusEditor(sectionId, contentKey)
+          } else if (target.tagName !== 'IMG' && event.type === 'dblclick') {
+            // 1. Buscamos la referencia al componente de forma segura
+            const sectionComponent = sectionEditorRefs.value.find(comp => comp && comp.section && comp.section.id === sectionId)
+
+            // 2. Si la encontramos, le decimos que se expanda
+            if (sectionComponent) {
+              sectionComponent.setCollapsed(false)
+            }
+
+            // 3. Esperamos a que Vue actualice el DOM (la sección ya está visible)
+            nextTick(() => {
+              // 4. Luego, llamamos a focusEditor
+              focusEditor(sectionId, contentKey)
+            })
           }
-          break // Salimos del bucle una vez que encontramos y manejamos el target
+          break
         }
         target = target.parentElement
       }
     }
 
-    // Simplificamos los listeners
-    iframeDoc.addEventListener('click', handleInteraction)
+    // Escuchamos solo dblclick para la acción de enfocar/expandir texto
     iframeDoc.addEventListener('dblclick', handleInteraction)
+    // Mantenemos el click simple solo para las imágenes
+    iframeDoc.addEventListener('click', event => {
+      let target = event.target
+      while (target && target !== iframeDoc.body) {
+        const keyData = target.getAttribute('data-editor-key')
+        if (keyData && target.tagName === 'IMG' && authStore.isAdmin) {
+          handleInteraction(event) // Reutilizamos la lógica si es una imagen
+          break
+        }
+        target = target.parentElement
+      }
+    })
   }
 
+  // Asegúrate de que tu función focusEditor también esté presente
   const focusEditor = (sectionId, contentKey) => {
-    // 1. Construimos el identificador único que acabamos de crear en SectionEditor.vue
     const combinedKey = `${sectionId}-${contentKey}`
-
-    // 2. Usamos querySelector para encontrar el elemento exacto
     const wrapper = document.querySelector(`[data-editor-wrapper-key="${combinedKey}"]`)
-
     if (wrapper) {
-      // 3. Una vez encontrado el contenedor, buscamos el campo de entrada dentro de él
       const inputElement = wrapper.querySelector('input, textarea, .ProseMirror')
       if (inputElement) {
         inputElement.focus()
-        // Hacemos scroll para que el campo sea visible
         wrapper.scrollIntoView({ behavior: 'smooth', block: 'center' })
       }
     }
@@ -271,7 +262,10 @@
       // Lógica de Imágenes: Reemplazamos cada <img> con la imagen que le corresponde en orden
       sectionHtml = sectionHtml.replace(/<img[^>]*>/g, imgTag => {
         const imageKey = allImageKeys[imageCounter]
-        if (!imageKey) return imgTag // Si no hay más claves de imagen, no hagas nada
+        if (!imageKey) return imgTag // Si no hay más claves de imagen (poco probable), no hagas nada
+
+        // Verificamos que esta sección realmente CONTENGA esta clave de imagen
+        if (!section.content.hasOwnProperty(imageKey)) return imgTag
 
         const rawContent = section.content[imageKey] || ''
         const newSrc = rawContent ? `src="${encodeURI(rawContent)}"` : 'src=""'
@@ -281,7 +275,7 @@
           updatedTag = updatedTag.replace('<img', `<img data-editor-key="${section.id}-${imageKey}"`)
         }
 
-        imageCounter++
+        imageCounter++ // Incrementamos el contador para la SIGUIENTE imagen del correo
         return updatedTag
       })
 
@@ -290,8 +284,8 @@
         if (!key.startsWith('image_')) {
           const rawContent = section.content[key] || ''
           const placeholderRegex = new RegExp(`{{\\s*${key}\\s*}}`, 'g')
-          if (key.includes('enlace')) {
-            sectionHtml = sectionHtml.replace(placeholderRegex, encodeURI(rawContent))
+          if (key.includes('enlace') || key.endsWith('_url') || key === 'url') {
+            sectionHtml = sectionHtml.replace(new RegExp(`href="{{\\s*${key}\\s*}}"`, 'g'), `href="${encodeURI(rawContent)}"`)
           } else {
             const plainText = getPlainTextFromHtml(rawContent)
             const styledHtmlContent = rawContent.replace(/<p/g, '<p style="margin: 0;"')
@@ -326,36 +320,10 @@
       })
   }
 
-  // FUNCIÓN para actualizar el store cuando una sección cambie
-  const updateSectionContent = (sectionId, newContent) => {
-    const sectionIndex = editorStore.editableContent.sections.findIndex(s => s.id === sectionId)
-    if (sectionIndex !== -1) {
-      editorStore.editableContent.sections[sectionIndex].content = newContent
-      handleContentChange() // Reutilizamos esta función para marcar que hay cambios sin guardar
-    }
-  }
-
-  // --- INICIO DE LA MODIFICACIÓN: AÑADIR NUEVAS FUNCIONES ---
   const deleteSection = sectionId => {
     editorStore.editableContent.sections = editorStore.editableContent.sections.filter(s => s.id !== sectionId)
     handleContentChange()
   }
-
-  // const moveSection = (sectionId, direction) => {
-  //   const sections = editorStore.editableContent.sections
-  //   const index = sections.findIndex(s => s.id === sectionId)
-
-  //   if (index === -1) return
-
-  //   const newIndex = index + direction
-
-  //   // Asegurarnos de no movernos fuera de los límites del array
-  //   if (newIndex < 0 || newIndex >= sections.length) return // Intercambiamos los elementos en el array
-  //   ;[sections[index], sections[newIndex]] = [sections[newIndex], sections[index]]
-
-  //   handleContentChange()
-  // }
-  // --- FIN DE LA MODIFICACIÓN ---
 
   const handleForceUnlock = async () => {
     const result = await editorStore.forceUnlockAndReload(uuid)
@@ -439,8 +407,6 @@
     }
     editorStore.resetEditorState()
   })
-
-  // frontend/src/views/EmailEditor.vue
 
   const renderedHtml = computed(() => {
     let currentHtml = editorStore.currentTemplateHtml

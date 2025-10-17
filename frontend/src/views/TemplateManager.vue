@@ -1,9 +1,6 @@
 <template>
   <div class="container py-4" style="max-width: 900px">
     <h1 class="card-title text-center mb-4">Gestionar Templates de Correo</h1>
-    <div v-if="formFeedbackMessage" :class="['form-feedback-message', formFeedbackType]">
-      {{ formFeedbackMessage }}
-    </div>
     <div ref="templateFormSection" class="card p-4 mb-4">
       <h2 class="h4 text-center mb-4">
         {{ editingTemplateId ? 'Editar Template Existente' : 'Añadir Nuevo Template' }}
