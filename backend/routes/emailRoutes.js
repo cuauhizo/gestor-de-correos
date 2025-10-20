@@ -18,6 +18,6 @@ router.delete('/:uuid', protect, emailController.deleteEmail)
 // Rutas de bloqueo
 router.post('/:uuid/lock', protect, emailController.lockEmail)
 router.post('/:uuid/unlock', protect, emailController.unlockEmail)
-router.post('/:uuid/force-unlock', protect, admin, emailController.forceUnlockEmail)
+router.post('/:uuid/force-unlock', protect, emailController.forceUnlockEmail)
 
 module.exports = router

@@ -17,6 +17,15 @@
       <button @click="editor.chain().focus().toggleBulletList().run()" :class="{ 'is-active': editor.isActive('bulletList') }" title="Lista con viñetas">UL</button>
       <button @click="editor.chain().focus().toggleOrderedList().run()" :class="{ 'is-active': editor.isActive('orderedList') }" title="Lista numerada">OL</button>
       <button @click="editor.chain().focus().toggleCodeBlock().run()" :class="{ 'is-active': editor.isActive('codeBlock') }" title="Bloque de código">Code Block</button>
+       <button @click="editor.chain().focus().setTextAlign('left').run()" :class="{ 'is-active': editor.isActive({ textAlign: 'left' }) }" title="Alinear Izquierda">
+        <i-bi-text-left />
+      </button>
+      <button @click="editor.chain().focus().setTextAlign('center').run()" :class="{ 'is-active': editor.isActive({ textAlign: 'center' }) }" title="Centrar">
+        <i-bi-text-center />
+      </button>
+      <button @click="editor.chain().focus().setTextAlign('right').run()" :class="{ 'is-active': editor.isActive({ textAlign: 'right' }) }" title="Alinear Derecha">
+        <i-bi-text-right />
+      </button>
       <button @click="editor.chain().focus().setHardBreak().run()" title="Salto de línea">BR</button>
       <button @click="setLink" :class="{ 'is-active': editor.isActive('link') }" title="Enlace">Link</button>
       <button v-if="editor.isActive('link')" @click="editor.chain().focus().unsetLink().run()" title="Quitar enlace">Unlink</button>
@@ -31,6 +40,7 @@
   import { watch, onMounted, onBeforeUnmount } from 'vue'
   import { useEditor, EditorContent } from '@tiptap/vue-3'
   import StarterKit from '@tiptap/starter-kit'
+  import TextAlign from '@tiptap/extension-text-align'
   // import Link from '@tiptap/extension-link'; // Importa el Link extension
 
   const props = defineProps({
@@ -57,6 +67,9 @@
       //   openOnClick: false,
       //   autolink: true,
       // }),
+      TextAlign.configure({
+        types: ['heading', 'paragraph'], // Permite la alineación en títulos y párrafos
+      }),
     ],
     onUpdate: ({ editor }) => {
       // Cuando el contenido del editor cambia, emitimos el HTML actualizado
@@ -168,5 +181,12 @@
 
   .tiptap-editor-wrapper.invalid {
     border-color: #dc3545; /* Rojo */
+  }
+
+  .tiptap-toolbar button svg {
+    width: 1.1em;
+    height: 1.1em;
+    display: inline-block;
+    vertical-align: middle;
   }
 </style>

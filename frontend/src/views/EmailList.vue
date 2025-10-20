@@ -27,7 +27,7 @@
           </div>
           <div class="d-flex gap-2">
             <button @click="handleEditClick(email)" class="btn btn-primary btn-sm">Editar</button>
-            <button v-if="authStore.isAdmin && email.is_locked" @click="handleForceUnlock(email.uuid)" class="btn btn-warning btn-sm">Desbloquear</button>
+            <button v-if="email.is_locked" @click="handleForceUnlock(email.uuid)" class="btn btn-warning btn-sm">Desbloquear</button>
             <button v-if="authStore.isAdmin" @click="deleteEmailClick(email.uuid)" class="btn btn-danger btn-sm">Eliminar</button>
           </div>
         </li>

@@ -288,7 +288,30 @@
             sectionHtml = sectionHtml.replace(new RegExp(`href="{{\\s*${key}\\s*}}"`, 'g'), `href="${encodeURI(rawContent)}"`)
           } else {
             const plainText = getPlainTextFromHtml(rawContent)
-            const styledHtmlContent = rawContent.replace(/<p/g, '<p style="margin: 0;"')
+
+            // --- INICIO DE LA CORRECCIÓN ---
+            // Esta regex busca <p> o <p con_atributos>
+            const styledHtmlContent = rawContent.replace(/<p( [^>]*)?>/g, (match, existingAttrs) => {
+              let style = 'margin: 0;'
+              
+              // Si existingAttrs existe (ej: ' style="text-align: center;"')
+              if (existingAttrs) {
+                const styleMatch = existingAttrs.match(/style="([^"]*)"/)
+                if (styleMatch && styleMatch[1]) {
+                  // Si ya hay un 'style', lo combinamos
+                  style += ' ' + styleMatch[1] // ej: "margin: 0; text-align: center;"
+                  // Quitamos el style viejo para reemplazarlo
+                  existingAttrs = existingAttrs.replace(styleMatch[0], '')
+                }
+                // Devolvemos el tag <p con los atributos que no eran 'style' y el nuevo 'style' combinado
+                return `<p${existingAttrs} style="${style}">`
+              }
+              
+              // Si era un <p> simple, solo añadimos el style
+              return `<p style="${style}">`
+            })
+            // --- FIN DE LA CORRECCIÓN ---
+
             sectionHtml = sectionHtml.replace(new RegExp(`(alt="[^"]*){{\\s*${key}\\s*}}([^"]*")`, 'g'), `$1${plainText}$2`)
             const replacement = forClipboard ? styledHtmlContent : `<span data-editor-key="${section.id}-${key}">${styledHtmlContent}</span>`
             sectionHtml = sectionHtml.replace(placeholderRegex, replacement)
