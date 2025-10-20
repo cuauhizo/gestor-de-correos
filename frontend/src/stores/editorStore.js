@@ -268,6 +268,58 @@ export const useEditorStore = defineStore('editor', () => {
     }
   }
 
+  function parsePlaceholdersFromHtml(sectionHTML) {
+    const newContentKeys = {}
+    const textRegex = /{{\s*([a-zA-Z0-9_]+)\s*}}/g
+    let textMatch
+    while ((textMatch = textRegex.exec(sectionHTML)) !== null) {
+      // Evita duplicados
+      if (newContentKeys[textMatch[1].trim()] === undefined) {
+        newContentKeys[textMatch[1].trim()] = ''
+      }
+    }
+    return newContentKeys
+  }
+
+  function updateSectionHtml(sectionId, newHtml) {
+    const section = editableContent.value.sections.find(s => s.id === sectionId)
+    if (section) {
+      // 1. Actualiza el HTML de la estructura
+      section.html = newHtml
+
+      // 2. Obtiene el 'content' que ya teníamos
+      const oldContent = section.content
+
+      // 3. Vuelve a analizar el HTML nuevo para ver qué placeholders {{...}} existen AHORA
+      const newContentKeys = parsePlaceholdersFromHtml(newHtml)
+
+      // 4. Construye el nuevo objeto 'content'
+      const newContent = {}
+      for (const key in newContentKeys) {
+        // Si la clave ya existía en el 'content' antiguo, conservamos el valor
+        if (oldContent.hasOwnProperty(key)) {
+          newContent[key] = oldContent[key]
+        } else {
+          // Si es un placeholder nuevo, le ponemos un valor por defecto
+          newContent[key] = '<p>Nuevo Campo...</p>'
+        }
+      }
+
+      // 5. (IMPORTANTE) Re-agregamos las claves de imagen
+      // La edición de HTML no debe afectar a las claves de imagen, que se manejan por separado.
+      for (const key in oldContent) {
+        if (key.startsWith('image_')) {
+          newContent[key] = oldContent[key]
+        }
+      }
+
+      // 6. Reemplazamos el 'content' de la sección con el nuevo objeto sincronizado
+      section.content = newContent
+
+      handleContentChange() // Marca que hay cambios sin guardar
+    }
+  }
+
   return {
     loading,
     error,
@@ -287,5 +339,6 @@ export const useEditorStore = defineStore('editor', () => {
     resetEditorState,
     forceUnlockAndReload,
     updateSectionContent,
+    updateSectionHtml,
   }
 })
