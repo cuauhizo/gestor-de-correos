@@ -408,11 +408,16 @@ onMounted(async () => {
     return
   }
 
+  // ?`
+  //       img[data-editor-key] { cursor: pointer; border: 2px dashed transparent; transition: border-color 0.2s; }
+  //       img[data-editor-key]:hover { border-color: #0d6efd; }
+  //     `
+
   nextTick(() => {
     const isAdminStyles = authStore.isAdmin
       ? `
-        img[data-editor-key] { cursor: pointer; border: 2px dashed transparent; transition: border-color 0.2s; }
-        img[data-editor-key]:hover { border-color: #0d6efd; }
+        img[data-editor-key] { cursor: pointer; box-shadow: inset 0 0 0 0 transparent; transition: box-shadow 0.2s; }
+        img[data-editor-key]:hover { box-shadow: 0px 1px 4px 0px #0d6efd }
       `
       : ''
     const initialHtml = `

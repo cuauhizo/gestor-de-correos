@@ -1,7 +1,7 @@
 <template>
   <div class="card p-3 mb-3 section-card">
     <div class="section-header">
-      <div class="section-controls d-flex align-items-center gap-2">
+      <div class="section-controls d-flex align-items-center gap-1">
         <span class="drag-handle" title="Arrastrar para reordenar">
           <i-bi-grip-vertical />
         </span>
@@ -10,6 +10,10 @@
         </h5>
       </div>
       <div class="section-controls d-flex align-items-center gap-2">
+        <button @click="isCollapsed = !isCollapsed" class="btn btn-sm btn-outline-secondary">
+          <i-bi-chevron-down v-if="isCollapsed" />
+          <i-bi-chevron-up v-else />
+        </button>
         <button v-if="authStore.isAdmin" @click="isEditingStructure = !isEditingStructure"
           :class="['btn', 'btn-sm', isEditingStructure ? 'btn-warning' : 'btn-outline-warning']"
           title="Editar HTML de la estructura">
