@@ -71,23 +71,7 @@
                 Previsualización del Correo -
                 <span class="fw-bold">{{ editorStore.templateName }}</span>
               </h3>
-              <div class="mx-auto my-3 btn-group">
-                <button @click="setPreviewWidth('100%')" :class="['btn', previewWidth === '100%' ? 'btn-primary' : 'btn-outline-secondary']">
-                  <span>
-                    <i-entypo:tv />
-                  </span>
-                </button>
-                <button @click="setPreviewWidth('375px')" :class="['btn', previewWidth === '375px' ? 'btn-primary' : 'btn-outline-secondary']">
-                  <span>
-                    <i-entypo:mobile />
-                  </span>
-                </button>
-              </div>
-              <iframe
-                ref="previewIframe"
-                @load="handlePreviewLoad"
-                :style="{ width: previewWidth, height: '2100px', border: '1px solid #ccc', 'background-color': '#f6f6f6', transition: 'width 0.3s ease' }"
-                class="mx-auto border rounded shadow-sm"></iframe>
+              <iframe ref="previewIframe" @load="handlePreviewLoad" :style="{ height: '2100px', border: '1px solid #ccc', 'background-color': '#f6f6f6' }" class="w-100 border rounded shadow-sm"></iframe>
             </div>
           </div>
         </div>
@@ -118,7 +102,6 @@
   const isAddModalVisible = ref(false)
   const sectionEditorRefs = ref([])
   const modalStore = useModalStore()
-  const previewWidth = ref('100%')
 
   // --- Refs para el DOM y Timers ---
   const previewIframe = ref(null)
@@ -401,10 +384,6 @@
     sectionEditorRefs.value.forEach(comp => comp.setCollapsed(false))
   }
 
-  const setPreviewWidth = width => {
-    previewWidth.value = width
-  }
-
   // --- Ciclo de Vida ---
   watch(
     () => editorStore.editableContent.sections,
@@ -443,33 +422,10 @@
         <!DOCTYPE html>
         <html>
           <head>
-            <meta charset="utf-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1.0">
             <style>
-              /* RESET GLOBAL */
-              body { margin: 0 !important; padding: 0 !important; width: 100% !important; -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%; font-family: Helvetica, Arial, sans-serif; }
-              img { border: 0; outline: none; text-decoration: none; }
-              table { border-collapse: collapse; mso-table-lspace: 0pt; mso-table-rspace: 0pt; }
-              
-              /* ESTILOS DE EDICIÓN (Mantenemos los que ya tenías) */
+              body { font-family: Helvetica, Arial, sans-serif; margin: 0; padding: 0; }
               span[data-editor-key] { cursor: pointer; display: contents; }
               ${isAdminStyles}
-
-              /* TUS FUENTES CUSTOM */
-              @font-face { font-family: "Nike Futura"; src: url("https://www.nike.com/assets/ncss/2.2/dotcom/fonts/nike-futura-extra-bold-v200.woff2") format("woff2"); }
-
-              /* TUS MEDIA QUERIES */
-              @media only screen and (max-width: 600px) {
-                  .two-column { display: block !important; width: 100% !important; }
-                  .column { width: 100% !important; display: block !important; padding: 16px 0 !important; }
-                  // .column h2, .column span { padding: 0 16px !important; background:red !important; }
-                  .mobile-hidden { display: none !important; mso-hide: all; }
-                  .w-100 { width: 100% !important; max-width: 100% !important; min-width: 100% !important; }
-                  .img-fluid { width: 100% !important; height: auto !important; max-width: 100% !important; display: block; }
-                  table[width="772"], table[style*="width: 772px"],
-                  table[width="680"], table[style*="width: 680px"] { width: 100% !important; }
-                  img { max-width: 100% !important; height: auto !important; }
-              }
             </style>
           </head>
           <body></body>
@@ -553,9 +509,7 @@
   .sortable-drag {
     cursor: grabbing;
     /* Cambia el cursor para indicar que estás arrastrando */
-    box-shadow:
-      0 10px 15px -3px rgb(0 0 0 / 0.1),
-      0 4px 6px -4px rgb(0 0 0 / 0.1);
+    box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
     transform: scale(1.02);
     opacity: 0.9;
   }
