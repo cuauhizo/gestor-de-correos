@@ -15,7 +15,7 @@
             <div class="d-flex flex-wrap gap-4 mt-3">
               <router-link to="/crear-correo" class="btn btn-primary btn-lg" v-if="authStore.isAdmin">
                 <i-bi-plus-circle-fill class="me-2" />
-                Crear Nuevo Correo
+                Nuevo Correo
               </router-link>
               <router-link to="/lista-correos" class="btn btn-outline-light btn-lg">
                 <i-bi-card-list class="me-2" />
