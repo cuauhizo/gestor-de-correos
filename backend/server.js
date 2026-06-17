@@ -18,6 +18,7 @@ const statsRoutes = require('./routes/statsRoutes')
 const app = express()
 const port = process.env.PORT || 3000
 const cookieParser = require('cookie-parser')
+const errorHandler = require('./middleware/errorMiddleware.js')
 
 // Rutas (Endpoints API)
 // --- Middleware Global ---
@@ -57,11 +58,11 @@ app.use('/api/users', userRoutes)
 app.use('/api/section-templates', sectionTemplateRoutes)
 app.use('/api/stats', statsRoutes)
 
-// (Aquí usaremos las otras rutas)
-
 app.get('/', (req, res) => {
   res.send('API del Editor de Correos funcionando!')
 })
+
+app.use(errorHandler)
 
 // Conectar a la base de datos e iniciar el servidor
 async function startServer() {
