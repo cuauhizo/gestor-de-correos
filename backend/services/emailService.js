@@ -27,36 +27,49 @@ exports.getEmailByUuid = async uuid => {
 exports.createEmail = async (template_id, initial_content, user_id) => {
   const uuid = uuidv4()
 
-  const [templateRows] = await pool.execute('SELECT html_content FROM templates WHERE id = ?', [template_id])
-  if (templateRows.length === 0) {
-    throw new Error('Template no encontrado')
-  }
-  const templateHtml = templateRows[0].html_content
+  // 1. Obtenemos una conexión dedicada del pool para la transacción
+  const connection = await pool.getConnection()
 
-  const sections = parseTemplateHTML(templateHtml)
+  try {
+    // 2. Iniciamos la transacción
+    await connection.beginTransaction()
 
-  // 2. Rellenamos con el contenido inicial, PERO respetando las imágenes
-  if (initial_content) {
-    sections.forEach(section => {
-      for (const key in section.content) {
-        // SOLO sobrescribimos si la clave existe en initial_content
-        // Y SI NO es una clave de imagen (para preservar las URLs originales)
-        if (initial_content[key] && !key.startsWith('image_')) {
-          section.content[key] = initial_content[key]
+    const [templateRows] = await connection.execute('SELECT html_content FROM templates WHERE id = ?', [template_id])
+    if (templateRows.length === 0) {
+      throw new Error('Template no encontrado')
+    }
+    const templateHtml = templateRows[0].html_content
+    const sections = parseTemplateHTML(templateHtml)
+
+    // Rellenamos con el contenido inicial, respetando las imágenes
+    if (initial_content) {
+      sections.forEach(section => {
+        for (const key in section.content) {
+          if (initial_content[key] && !key.startsWith('image_')) {
+            section.content[key] = initial_content[key]
+          } else if (key.startsWith('image_') && !section.content[key] && initial_content[key]) {
+            section.content[key] = initial_content[key]
+          }
         }
-        // Si la clave es de imagen y está vacía en el parser (por si acaso),
-        // y existe en initial_content (poco probable, pero seguro), la tomamos.
-        else if (key.startsWith('image_') && !section.content[key] && initial_content[key]) {
-          section.content[key] = initial_content[key]
-        }
-      }
-    })
+      })
+    }
+
+    const finalContentObject = { sections }
+
+    // Usamos 'connection' en lugar de 'pool' para asegurar que estamos en la misma transacción
+    await connection.execute('INSERT INTO emails_editable (uuid, template_id, content_json, user_id) VALUES (?, ?, ?, ?)', [uuid, template_id, JSON.stringify(finalContentObject), user_id])
+
+    // 3. Si todo salió bien, confirmamos los cambios
+    await connection.commit()
+    return uuid
+  } catch (error) {
+    // 4. Si algo falló, revertimos todos los cambios
+    await connection.rollback()
+    throw error // Relanzamos el error para que el controlador lo atrape (catchAsync)
+  } finally {
+    // 5. Siempre liberamos la conexión de vuelta al pool
+    connection.release()
   }
-
-  const finalContentObject = { sections }
-
-  await pool.execute('INSERT INTO emails_editable (uuid, template_id, content_json, user_id) VALUES (?, ?, ?, ?)', [uuid, template_id, JSON.stringify(finalContentObject), user_id])
-  return uuid
 }
 
 exports.updateEmailContent = async (uuid, updated_content, user_id) => {
