@@ -2,10 +2,26 @@
   <div class="card p-4 mt-5 mx-auto" style="max-width: 900px">
     <h1 class="card-title text-center mb-4">Bienvenido al Creador de Correos</h1>
 
-    <div v-if="templateStore.loading" class="text-center text-secondary">Cargando templates disponibles...</div>
-    <div v-if="templateStore.error" class="text-center text-danger">{{ templateStore.error }}</div>
+    <div v-if="templateStore.loading" class="mb-4">
+      <SkeletonLoader width="30%" height="20px" class="mb-2 d-block" />
+      <SkeletonLoader width="100%" height="38px" radius="6px" class="mb-4 d-block" />
 
-    <div v-if="!templateStore.loading && !templateStore.error">
+      <div class="p-4 border rounded bg-light mb-4">
+        <SkeletonLoader width="60%" height="24px" class="mb-4 d-block border-bottom pb-2" />
+
+        <SkeletonLoader width="25%" height="20px" class="mb-2 d-block" />
+        <SkeletonLoader width="100%" height="38px" radius="6px" class="mb-3 d-block" />
+
+        <SkeletonLoader width="35%" height="20px" class="mb-2 d-block" />
+        <SkeletonLoader width="100%" height="90px" radius="6px" class="mb-3 d-block" />
+      </div>
+
+      <SkeletonLoader width="220px" height="38px" radius="6px" />
+    </div>
+
+    <div v-else-if="templateStore.error" class="text-center text-danger">{{ templateStore.error }}</div>
+
+    <div v-else>
       <div v-if="templateStore.templates.length > 0" class="mb-4">
         <label for="selectTemplate" class="form-label d-block">Selecciona un Template:</label>
         <select id="selectTemplate" class="form-select" v-model="selectedTemplateId" @change="fetchSelectedTemplateDetails">
@@ -56,6 +72,7 @@
   import { useTemplateStore } from '../stores/templateStore.js'
   import { useEmailStore } from '../stores/emailStore.js'
   import { capitalizeFirstLetter, isValidUrl, getPlainTextFromHtml } from '../utils/helpers.js'
+  import SkeletonLoader from '../components/SkeletonLoader.vue' // <-- IMPORTACIÓN DEL SKELETON
 
   // --- Instancias de Stores ---
   const router = useRouter()
@@ -68,10 +85,6 @@
   const initialContentErrors = ref({})
   const isCreatingEmail = ref(false)
   const creationError = ref(null)
-  const LOREM_IPSUM_TITLE = 'Lorem Ipsum Dolor Sit Amet'
-  const LOREM_IPSUM_PARAGRAPH =
-    'Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.'
-  const PLACEHOLDER_URL = 'https://www.ejemplo.com'
 
   // --- Funciones Auxiliares ---
   const getTemplateName = id => templateStore.templates.find(t => t.id === id)?.name || '...'
@@ -84,7 +97,7 @@
     try {
       const LOREM_IPSUM_TITLE = 'Lorem Ipsum Dolor Sit Amet'
       const LOREM_IPSUM_PARAGRAPH = 'Lorem ipsum dolor sit amet, consectetur adipiscing elit.'
-      const PLACEHOLDER_URL = 'https://www.ejemplo.com/destino' // URL de ejemplo
+      const PLACEHOLDER_URL = 'https://www.ejemplo.com/destino'
 
       const html_content = await templateStore.getTemplateContent(selectedTemplateId.value)
       const newContent = {}
@@ -93,9 +106,8 @@
       const attributeRegex = /data-editor-attribute="([^"]+)"\s*[^>]*?\s*([a-zA-Z0-9_]+)="{{\s*([a-zA-Z0-9_]+)\s*}}"/g
       let attributeMatch
       while ((attributeMatch = attributeRegex.exec(html_content)) !== null) {
-        const attributeName = attributeMatch[1] // 'href'
-        const placeholderKey = attributeMatch[3] // 'banner_enlace'
-        newContent[placeholderKey] = PLACEHOLDER_URL // Rellenamos con la URL de ejemplo
+        const placeholderKey = attributeMatch[3]
+        newContent[placeholderKey] = PLACEHOLDER_URL
       }
 
       // Extraer placeholders de texto como {{variable}} (esta lógica sigue siendo válida para contenido de texto)
@@ -120,7 +132,7 @@
       const imgRegex = /<img[^>]+data-editor-key="([^"]+)"[^>]+src="([^"]+)"/g
       let imgMatch
       while ((imgMatch = imgRegex.exec(html_content)) !== null) {
-        const key = imgMatch[1] // image_full_banner o image_0, image_1
+        const key = imgMatch[1]
         newContent[key] = imgMatch[2]
       }
       initialContent.value = newContent

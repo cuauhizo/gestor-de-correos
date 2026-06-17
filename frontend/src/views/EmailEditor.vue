@@ -5,10 +5,47 @@
         <h1>Editor de Contenido de Correo</h1>
       </div>
       <div class="col-12">
-        <div v-if="editorStore.loading" class="text-center text-secondary">Cargando correo...</div>
-        <div v-if="editorStore.error" class="alert alert-danger text-center">{{ editorStore.error }}</div>
+        <div v-if="editorStore.loading" class="row g-4">
+          <div class="col-md-4">
+            <div class="card p-3 h-100">
+              <div class="d-flex justify-content-between align-items-center mb-4">
+                <SkeletonLoader width="60%" height="28px" />
+                <SkeletonLoader width="25%" height="24px" radius="12px" />
+              </div>
+              <div class="d-flex justify-content-between mb-4">
+                <SkeletonLoader width="40%" height="34px" radius="6px" />
+                <SkeletonLoader width="25%" height="34px" radius="6px" />
+              </div>
 
-        <div v-if="!editorStore.loading && !editorStore.error" class="row g-4">
+              <div v-for="i in 3" :key="'skel-sec-' + i" class="border rounded p-3 mb-3 bg-light">
+                <div class="d-flex justify-content-between mb-3">
+                  <SkeletonLoader width="50%" height="20px" />
+                  <SkeletonLoader width="20%" height="20px" />
+                </div>
+                <SkeletonLoader width="100%" height="15px" class="mb-2 d-block" />
+                <SkeletonLoader width="90%" height="15px" class="mb-2 d-block" />
+                <SkeletonLoader width="95%" height="15px" class="d-block" />
+              </div>
+            </div>
+          </div>
+
+          <div class="col-md-8">
+            <div class="card p-3 h-100">
+              <SkeletonLoader width="50%" height="32px" class="mx-auto mb-4 d-block" />
+
+              <div class="mx-auto mb-3 d-flex justify-content-center gap-2">
+                <SkeletonLoader width="45px" height="35px" radius="6px" />
+                <SkeletonLoader width="45px" height="35px" radius="6px" />
+              </div>
+
+              <SkeletonLoader width="100%" height="600px" radius="4px" />
+            </div>
+          </div>
+        </div>
+
+        <div v-else-if="editorStore.error" class="alert alert-danger text-center">{{ editorStore.error }}</div>
+
+        <div v-else class="row g-4">
           <div class="col-md-4">
             <div class="card p-3 h-100">
               <div v-if="editorStore.isReadOnly" class="alert alert-warning">
@@ -55,12 +92,18 @@
                   </draggable>
                 </div>
               </fieldset>
+
               <div class="d-flex flex-wrap justify-content-center gap-1 mt-3">
                 <button @click="handleCancel" class="btn btn-danger">Cancelar</button>
                 <button @click="manualSaveChanges" :disabled="editorStore.isSaving" class="btn btn-primary">
                   {{ editorStore.isSaving ? 'Guardando...' : 'Guardar' }}
                 </button>
                 <button @click="copyHtmlToClipboard" class="btn btn-success">Copiar HTML</button>
+
+                <button @click="sendTestEmail" :disabled="isSendingTest" class="btn btn-info text-white">
+                  {{ isSendingTest ? 'Enviando...' : 'Enviar Prueba' }}
+                </button>
+
                 <button v-if="authStore.isAdmin" @click="copyShareLink" class="btn btn-secondary">Compartir Enlace</button>
               </div>
             </div>
@@ -107,6 +150,8 @@
   import SectionEditor from '../components/SectionEditor.vue'
   import { getPlainTextFromHtml } from '../utils/helpers.js'
   import AddSectionModal from '../components/AddSectionModal.vue'
+  import api from '../services/api'
+  import SkeletonLoader from '../components/SkeletonLoader.vue' // <-- IMPORTACIÓN DEL SKELETON
 
   // --- Instancias ---
   const route = useRoute()
@@ -120,6 +165,8 @@
   const modalStore = useModalStore()
   const previewWidth = ref('100%')
 
+  const isSendingTest = ref(false)
+
   // --- Refs para el DOM y Timers ---
   const previewIframe = ref(null)
   let isPreviewReady = false
@@ -127,6 +174,36 @@
   let autoSaveTimeoutId = null
 
   // --- Lógica del Componente ---
+
+  const sendTestEmail = async () => {
+    const emailDestino = prompt('Introduce el correo electrónico para recibir la prueba:')
+    if (!emailDestino) return
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    if (!emailRegex.test(emailDestino)) {
+      feedbackStore.show('Por favor ingresa un correo electrónico válido.', 'error')
+      return
+    }
+
+    isSendingTest.value = true
+    try {
+      const htmlContent = generateFinalHtml(true)
+
+      await api.post(`/emails-editable/${uuid}/send-test`, {
+        to: emailDestino,
+        subject: `[Prueba] ${editorStore.templateName || 'Gestor de Correos'}`,
+        html: htmlContent,
+      })
+
+      feedbackStore.show('¡Correo de prueba enviado exitosamente!', 'success')
+    } catch (error) {
+      console.error('Error al enviar la prueba:', error)
+      feedbackStore.show(error.response?.data?.message || 'Hubo un error al enviar el correo de prueba.', 'error')
+    } finally {
+      isSendingTest.value = false
+    }
+  }
+
   const manualSaveChanges = async () => {
     clearTimeout(autoSaveTimeoutId)
     const wasSuccessful = await editorStore.saveEmail(uuid)
@@ -158,7 +235,7 @@
 
           if (!sectionId || !contentKey) return
 
-          // Lógica para imágenes (sin cambios)
+          // Lógica para imágenes
           if (target.tagName === 'IMG' && authStore.isAdmin) {
             event.preventDefault()
             const section = editorStore.editableContent.sections.find(s => s.id === sectionId)
@@ -199,7 +276,7 @@
       while (target && target !== iframeDoc.body) {
         const keyData = target.getAttribute('data-editor-key')
         if (keyData && target.tagName === 'IMG' && authStore.isAdmin) {
-          handleInteraction(event) // Reutilizamos la lógica si es una imagen
+          handleInteraction(event)
           break
         }
         target = target.parentElement
@@ -207,7 +284,6 @@
     })
   }
 
-  // Asegúrate de que tu función focusEditor también esté presente
   const focusEditor = (sectionId, contentKey) => {
     const combinedKey = `${sectionId}-${contentKey}`
     const wrapper = document.querySelector(`[data-editor-wrapper-key="${combinedKey}"]`)
@@ -239,7 +315,6 @@
 
   const handleContentChange = () => {
     if (!editorStore.hasUnsavedChanges) {
-      // CORRECCIÓN: Eliminar el 'editorStore' duplicado
       editorStore.autoSaveStatus.text = 'Cambios sin guardar'
       editorStore.autoSaveStatus.class = 'bg-warning'
     }
@@ -254,7 +329,7 @@
         await editorStore.saveEmail(uuid)
       }
       scheduleNextAutoSave()
-    }, 20000) // 20 segundos
+    }, 20000)
   }
 
   const copyHtmlToClipboard = () => {
@@ -273,7 +348,7 @@
     // Obtenemos una lista ordenada de TODAS las claves de imagen de todo el correo
     const allImageKeys = editorStore.editableContent.sections.flatMap(section => Object.keys(section.content).filter(key => key.startsWith('image_')))
 
-    let imageCounter = 0 // Un contador para llevar la cuenta de qué imagen nos toca
+    let imageCounter = 0
 
     const finalHtmlSections = editorStore.editableContent.sections.map(section => {
       let sectionHtml = section.html || ''
@@ -281,7 +356,7 @@
       // Lógica de Imágenes: Reemplazamos cada <img> con la imagen que le corresponde en orden
       sectionHtml = sectionHtml.replace(/<img[^>]*>/g, imgTag => {
         const imageKey = allImageKeys[imageCounter]
-        if (!imageKey) return imgTag // Si no hay más claves de imagen (poco probable), no hagas nada
+        if (!imageKey) return imgTag
 
         // Verificamos que esta sección realmente CONTENGA esta clave de imagen
         if (!section.content.hasOwnProperty(imageKey)) return imgTag
@@ -294,7 +369,7 @@
           updatedTag = updatedTag.replace('<img', `<img data-editor-key="${section.id}-${imageKey}"`)
         }
 
-        imageCounter++ // Incrementamos el contador para la SIGUIENTE imagen del correo
+        imageCounter++
         return updatedTag
       })
 
@@ -317,19 +392,14 @@
               if (existingAttrs) {
                 const styleMatch = existingAttrs.match(/style="([^"]*)"/)
                 if (styleMatch && styleMatch[1]) {
-                  // Si ya hay un 'style', lo combinamos
-                  style += ' ' + styleMatch[1] // ej: "margin: 0; text-align: center;"
-                  // Quitamos el style viejo para reemplazarlo
+                  style += ' ' + styleMatch[1]
                   existingAttrs = existingAttrs.replace(styleMatch[0], '')
                 }
-                // Devolvemos el tag <p con los atributos que no eran 'style' y el nuevo 'style' combinado
                 return `<p${existingAttrs} style="${style}">`
               }
 
-              // Si era un <p> simple, solo añadimos el style
               return `<p style="${style}">`
             })
-            // --- FIN DE LA CORRECCIÓN ---
 
             sectionHtml = sectionHtml.replace(new RegExp(`(alt="[^"]*){{\\s*${key}\\s*}}([^"]*")`, 'g'), `$1${plainText}$2`)
             const replacement = forClipboard ? styledHtmlContent : `<span data-editor-key="${section.id}-${key}">${styledHtmlContent}</span>`
@@ -347,14 +417,11 @@
   }
 
   const copyShareLink = () => {
-    // Obtenemos la URL actual de la ventana del navegador
     const link = window.location.href
 
-    // Usamos la API del portapapeles para copiar el enlace
     navigator.clipboard
       .writeText(link)
       .then(() => {
-        // Notificamos al usuario que se copió con éxito
         feedbackStore.show('¡Enlace de edición copiado al portapapeles!', 'success')
       })
       .catch(() => {
@@ -363,17 +430,15 @@
   }
 
   const deleteSection = sectionId => {
-    // Esta es la lógica que queremos ejecutar SÓLO si el usuario confirma
     const doDelete = () => {
       editorStore.editableContent.sections = editorStore.editableContent.sections.filter(s => s.id !== sectionId)
       handleContentChange()
     }
 
-    // En lugar de borrar, ahora mostramos el modal
     modalStore.show({
       title: 'Confirmar Eliminación',
       message: '¿Estás seguro de que quieres eliminar esta sección? Esta acción no se puede deshacer.',
-      onConfirm: doDelete, // Llama a nuestra lógica de borrado si se da clic en "Aceptar"
+      onConfirm: doDelete,
     })
   }
 
@@ -387,9 +452,7 @@
   }
 
   const handleCancel = async () => {
-    // 1. Llama explícitamente a la función de desbloqueo del store
     await editorStore.unlockEmail(uuid)
-    // 2. Una vez que se ha desbloqueado, redirige al usuario
     router.push('/lista-correos')
   }
 
@@ -405,14 +468,12 @@
     previewWidth.value = width
   }
 
-  // --- Ciclo de Vida ---
   watch(
     () => editorStore.editableContent.sections,
     (newSections, oldSections) => {
-      // Cuando el array de secciones cambie, actualizamos la vista previa.
       updatePreviewContent()
     },
-    { deep: true } // 'deep: true' es crucial para detectar cambios dentro de los objetos del array.
+    { deep: true }
   )
 
   onMounted(async () => {
@@ -426,11 +487,6 @@
       }
       return
     }
-
-    // ?`
-    //       img[data-editor-key] { cursor: pointer; border: 2px dashed transparent; transition: border-color 0.2s; }
-    //       img[data-editor-key]:hover { border-color: #0d6efd; }
-    //     `
 
     nextTick(() => {
       const isAdminStyles = authStore.isAdmin
@@ -451,7 +507,7 @@
               img { border: 0; outline: none; text-decoration: none; }
               table { border-collapse: collapse; mso-table-lspace: 0pt; mso-table-rspace: 0pt; }
               
-              /* ESTILOS DE EDICIÓN (Mantenemos los que ya tenías) */
+              /* ESTILOS DE EDICIÓN */
               span[data-editor-key] { cursor: pointer; display: contents; }
               ${isAdminStyles}
 
@@ -462,7 +518,6 @@
               @media only screen and (max-width: 600px) {
                   .two-column { display: block !important; width: 100% !important; }
                   .column { width: 100% !important; display: block !important; padding: 16px 0 !important; }
-                  // .column h2, .column span { padding: 0 16px !important; background:red !important; }
                   .mobile-hidden { display: none !important; mso-hide: all; }
                   .w-100 { width: 100% !important; max-width: 100% !important; min-width: 100% !important; }
                   .img-fluid { width: 100% !important; height: auto !important; max-width: 100% !important; display: block; }
@@ -482,7 +537,6 @@
 
   onBeforeUnmount(async () => {
     clearTimeout(autoSaveTimeoutId)
-    // Solo guardamos y desbloqueamos si NO estábamos en modo de solo lectura
     if (!editorStore.isReadOnly) {
       if (editorStore.hasUnsavedChanges) {
         await editorStore.saveEmail(uuid)
@@ -491,49 +545,6 @@
     }
     editorStore.resetEditorState()
   })
-
-  const renderedHtml = computed(() => {
-    let currentHtml = editorStore.currentTemplateHtml
-
-    // Asegúrate de que el editorStore.editableContent y editorStore.currentTemplateHtml no sean nulos
-    if (!editorStore.editableContent || !currentHtml) {
-      return ''
-    }
-
-    const sectionsContent = editorStore.editableContent.sections.reduce((acc, section) => {
-      return { ...acc, ...section.content }
-    }, {})
-
-    // Esta expresión regular ahora busca tanto placeholders en el contenido como en atributos con data-editor-attribute
-    // El nuevo patrón para atributos es (data-editor-attribute="([^"]+)"\s*[^>]*?\s*)?(\w+)="{{\s*([a-zA-Z0-9_]+)\s*}}"
-    const replaceRegex = /(data-editor-key="([^"]+)"[^>]*?)?<([^>]+)>(.*?){{\s*([a-zA-Z0-9_]+)\s*}}(.*?)</g
-    // O si quieres algo más específico para atributos:
-    const attributeReplaceRegex = /(data-editor-attribute="([^"]+)")([^>]*?)(\w+)="{{\s*([a-zA-Z0-9_]+)\s*}}"/g
-
-    // 1. Reemplazar placeholders en atributos (como href)
-    currentHtml = currentHtml.replace(attributeReplaceRegex, (match, dataAttrPart, attrKey, restOfTag, attributeName, placeholderKey) => {
-      const replacementValue = sectionsContent[placeholderKey] || ''
-      // Reconstruimos el atributo: data-editor-attribute="href" href="VALOR_NUEVO"
-      return `${dataAttrPart}${restOfTag}${attributeName}="${replacementValue}"`
-    })
-
-    // 2. Reemplazar placeholders de texto y atributos data-editor-key (para imágenes)
-    currentHtml = currentHtml.replace(/({{\s*([a-zA-Z0-9_]+)\s*}})|(data-editor-key="([^"]+)"[^>]+src="([^"]+)")/g, (match, placeholderMatch, placeholderKey, imgMatch, imgDataKey, imgSrc) => {
-      if (placeholderKey) {
-        // Es un placeholder de texto
-        return sectionsContent[placeholderKey] || ''
-      } else if (imgDataKey && imgSrc) {
-        // Es una imagen con data-editor-key
-        const replacementSrc = sectionsContent[imgDataKey] || imgSrc // Usa el src del contenido editable o el original
-        return `data-editor-key="${imgDataKey}" src="${replacementSrc}"` // Reconstruye el atributo src
-      }
-      return match // Si no es ninguno, devuelve el match original
-    })
-
-    return currentHtml
-  })
-
-  // Función para cambiar el ancho de la previsualización (simulando desktop/mobile)
 </script>
 
 <style scoped>
@@ -549,10 +560,8 @@
     border: 1px dashed #0d6efd;
   }
 
-  /* Estilo para el elemento que está siendo arrastrado */
   .sortable-drag {
     cursor: grabbing;
-    /* Cambia el cursor para indicar que estás arrastrando */
     box-shadow:
       0 10px 15px -3px rgb(0 0 0 / 0.1),
       0 4px 6px -4px rgb(0 0 0 / 0.1);

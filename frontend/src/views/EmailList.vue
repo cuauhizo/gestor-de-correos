@@ -2,9 +2,26 @@
   <div class="card p-4 mt-5 mx-auto" style="max-width: 900px">
     <h1 class="card-title text-center mb-4">Correos Editables Guardados</h1>
 
-    <div v-if="emailStore.loading" class="text-center text-secondary">Cargando lista de correos...</div>
-    <div v-if="emailStore.error" class="text-center text-danger">{{ emailStore.error }}</div>
-    <div v-if="!emailStore.loading && !emailStore.error">
+    <div v-if="emailStore.loading">
+      <ul class="list-group">
+        <li v-for="i in 5" :key="'skeleton-' + i" class="list-group-item d-flex justify-content-between align-items-center">
+          <div class="flex-grow-1 py-1">
+            <SkeletonLoader width="50%" height="20px" class="mb-2 d-block" />
+            <SkeletonLoader width="30%" height="16px" class="mb-2 d-block" />
+            <SkeletonLoader width="40%" height="16px" class="mb-2 d-block" />
+            <SkeletonLoader width="35%" height="16px" class="d-block" />
+          </div>
+          <div class="d-flex gap-2">
+            <SkeletonLoader width="65px" height="31px" radius="6px" />
+            <SkeletonLoader width="85px" height="31px" radius="6px" />
+          </div>
+        </li>
+      </ul>
+    </div>
+
+    <div v-else-if="emailStore.error" class="text-center text-danger">{{ emailStore.error }}</div>
+
+    <div v-else>
       <p v-if="emailStore.emails.length === 0" class="text-center">
         No hay correos editables guardados aún.
         <router-link to="/">Crea uno nuevo</router-link>
@@ -38,11 +55,12 @@
 
 <script setup>
   import { onMounted } from 'vue'
-  import { useEmailStore } from '../stores/emailStore.js' // <-- Importamos el store
+  import { useEmailStore } from '../stores/emailStore.js'
   import { useAuthStore } from '../stores/auth.js'
   import { formatDate } from '../utils/helpers.js'
   import { useFeedbackStore } from '../stores/feedbackStore.js'
   import { useModalStore } from '../stores/modalStore.js'
+  import SkeletonLoader from '../components/SkeletonLoader.vue'
 
   // --- Instancias ---
   const emailStore = useEmailStore()
@@ -56,7 +74,6 @@
     if (!result.success && result.message) {
       feedbackStore.show(result.message, 'error')
     } else if (result.success && result.message) {
-      // Este caso es para el desbloqueo forzado exitoso
       feedbackStore.show(result.message, 'success')
     }
   }

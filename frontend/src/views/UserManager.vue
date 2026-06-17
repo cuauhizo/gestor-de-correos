@@ -35,21 +35,39 @@
 
     <div class="card p-4">
       <h2 class="h4 text-center mb-4">Usuarios Existentes</h2>
-      <div v-if="userStore.loading" class="text-center text-secondary">Cargando...</div>
-      <div v-if="userStore.error" class="text-center text-danger">{{ userStore.error }}</div>
 
-      <ul class="list-group" v-if="!userStore.loading && !userStore.error">
-        <li v-for="user in userStore.users" :key="user.id" class="list-group-item d-flex justify-content-between align-items-center">
-          <div>
-            <strong>{{ user.username }}</strong>
-            <span :class="['badge', user.role === 'admin' ? 'bg-primary' : 'bg-secondary', 'ms-2']">{{ user.role }}</span>
-          </div>
-          <div class="d-flex gap-2">
-            <button @click="startEdit(user)" class="btn btn-primary btn-sm">Editar</button>
-            <button @click="handleDeleteUser(user.id)" class="btn btn-danger btn-sm" :disabled="authStore.user?.id === user.id">Eliminar</button>
-          </div>
-        </li>
-      </ul>
+      <div v-if="userStore.loading">
+        <ul class="list-group">
+          <li v-for="i in 3" :key="'skel-usr-' + i" class="list-group-item d-flex justify-content-between align-items-center">
+            <div class="d-flex align-items-center gap-2 w-50">
+              <SkeletonLoader width="50%" height="20px" />
+              <SkeletonLoader width="50px" height="22px" radius="6px" />
+            </div>
+            <div class="d-flex gap-2">
+              <SkeletonLoader width="65px" height="31px" radius="4px" />
+              <SkeletonLoader width="75px" height="31px" radius="4px" />
+            </div>
+          </li>
+        </ul>
+      </div>
+
+      <div v-else-if="userStore.error" class="text-center text-danger">{{ userStore.error }}</div>
+
+      <div v-else>
+        <p v-if="userStore.users.length === 0" class="text-center text-secondary">No hay usuarios registrados aún.</p>
+        <ul class="list-group" v-else>
+          <li v-for="user in userStore.users" :key="user.id" class="list-group-item d-flex justify-content-between align-items-center">
+            <div>
+              <strong>{{ user.username }}</strong>
+              <span :class="['badge', user.role === 'admin' ? 'bg-primary' : 'bg-secondary', 'ms-2']">{{ user.role }}</span>
+            </div>
+            <div class="d-flex gap-2">
+              <button @click="startEdit(user)" class="btn btn-primary btn-sm">Editar</button>
+              <button @click="handleDeleteUser(user.id)" class="btn btn-danger btn-sm" :disabled="authStore.user?.id === user.id">Eliminar</button>
+            </div>
+          </li>
+        </ul>
+      </div>
     </div>
   </div>
 </template>
@@ -60,6 +78,7 @@
   import { useAuthStore } from '../stores/auth.js'
   import { useFeedbackStore } from '../stores/feedbackStore.js'
   import { useModalStore } from '../stores/modalStore.js'
+  import SkeletonLoader from '../components/SkeletonLoader.vue' // <-- IMPORTACIÓN DEL SKELETON
 
   const userStore = useUserStore()
   const authStore = useAuthStore()

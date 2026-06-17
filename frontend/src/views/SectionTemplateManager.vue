@@ -30,8 +30,24 @@
 
     <div class="card p-4">
       <h2 class="h4 text-center mb-4">Biblioteca de Secciones</h2>
-      <div v-if="store.loading" class="text-center">Cargando...</div>
-      <div v-if="store.error" class="text-center text-danger">{{ store.error }}</div>
+
+      <div v-if="store.loading">
+        <ul class="list-group">
+          <li v-for="i in 3" :key="'skel-sec-' + i" class="list-group-item d-flex justify-content-between align-items-center">
+            <div class="flex-grow-1">
+              <SkeletonLoader width="40%" height="20px" class="mb-1 d-block" />
+              <SkeletonLoader width="30%" height="16px" class="d-block" />
+            </div>
+            <div class="d-flex gap-2">
+              <SkeletonLoader width="65px" height="31px" radius="4px" />
+              <SkeletonLoader width="75px" height="31px" radius="4px" />
+            </div>
+          </li>
+        </ul>
+      </div>
+
+      <div v-else-if="store.error" class="text-center text-danger">{{ store.error }}</div>
+
       <ul class="list-group" v-else>
         <li v-for="section in store.sections" :key="section.id" class="list-group-item d-flex justify-content-between align-items-center">
           <div>
@@ -54,6 +70,7 @@
   import { useSectionTemplateStore } from '../stores/sectionTemplateStore.js'
   import { useFeedbackStore } from '../stores/feedbackStore.js'
   import { useModalStore } from '../stores/modalStore.js'
+  import SkeletonLoader from '../components/SkeletonLoader.vue' // <-- IMPORTACIÓN DEL SKELETON
 
   const store = useSectionTemplateStore()
   const feedbackStore = useFeedbackStore()

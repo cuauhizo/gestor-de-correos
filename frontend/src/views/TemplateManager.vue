@@ -1,6 +1,7 @@
 <template>
   <div class="container py-4" style="max-width: 900px">
     <h1 class="card-title text-center mb-4">Gestionar Templates de Correo</h1>
+
     <div ref="templateFormSection" class="card p-4 mb-4">
       <h2 class="h4 text-center mb-4">
         {{ editingTemplateId ? 'Editar Template Existente' : 'Añadir Nuevo Template' }}
@@ -35,29 +36,49 @@
         </div>
       </form>
     </div>
+
     <hr class="divider my-5" />
+
     <div class="card p-4 template-list-section">
       <h2 class="h4 text-center mb-4">Templates Existentes</h2>
-      <div v-if="templateStore.loading" class="text-center text-secondary">Cargando templates...</div>
-      <div v-if="templateStore.error" class="text-center text-danger">
+
+      <div v-if="templateStore.loading">
+        <ul class="list-group">
+          <li v-for="i in 3" :key="'skel-tpl-' + i" class="list-group-item d-flex justify-content-between align-items-center">
+            <div class="flex-grow-1">
+              <SkeletonLoader width="20%" height="16px" class="mb-1 d-block" />
+              <SkeletonLoader width="40%" height="20px" class="d-block" />
+            </div>
+            <div class="d-flex gap-2">
+              <SkeletonLoader width="65px" height="31px" radius="4px" />
+              <SkeletonLoader width="75px" height="31px" radius="4px" />
+            </div>
+          </li>
+        </ul>
+      </div>
+
+      <div v-else-if="templateStore.error" class="text-center text-danger">
         {{ templateStore.error }}
       </div>
-      <p v-if="!templateStore.loading && !templateStore.error && templateStore.templates.length === 0" class="text-center">No hay templates guardados aún.</p>
-      <ul class="list-group">
-        <li v-for="template in templateStore.templates" :key="template.id" class="list-group-item d-flex justify-content-between align-items-center">
-          <div>
-            <strong>ID:</strong>
-            {{ template.id }}
-            <br />
-            <strong>Nombre:</strong>
-            {{ template.name }}
-          </div>
-          <div class="d-flex gap-2">
-            <button @click="editTemplate(template.id)" class="btn btn-primary btn-sm">Editar</button>
-            <button @click="deleteTemplateConfirmed(template.id)" class="btn btn-danger btn-sm">Eliminar</button>
-          </div>
-        </li>
-      </ul>
+
+      <div v-else>
+        <p v-if="templateStore.templates.length === 0" class="text-center">No hay templates guardados aún.</p>
+        <ul class="list-group" v-else>
+          <li v-for="template in templateStore.templates" :key="template.id" class="list-group-item d-flex justify-content-between align-items-center">
+            <div>
+              <strong>ID:</strong>
+              {{ template.id }}
+              <br />
+              <strong>Nombre:</strong>
+              {{ template.name }}
+            </div>
+            <div class="d-flex gap-2">
+              <button @click="editTemplate(template.id)" class="btn btn-primary btn-sm">Editar</button>
+              <button @click="deleteTemplateConfirmed(template.id)" class="btn btn-danger btn-sm">Eliminar</button>
+            </div>
+          </li>
+        </ul>
+      </div>
     </div>
   </div>
 </template>
@@ -67,6 +88,7 @@
   import { useTemplateStore } from '../stores/templateStore.js'
   import { useFeedbackStore } from '../stores/feedbackStore.js'
   import { useModalStore } from '../stores/modalStore.js'
+  import SkeletonLoader from '../components/SkeletonLoader.vue' // <-- IMPORTACIÓN DEL SKELETON
 
   // --- Instancias ---
   const templateStore = useTemplateStore()
