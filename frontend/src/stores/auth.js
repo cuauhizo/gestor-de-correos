@@ -1,65 +1,64 @@
-// frontend/src/stores/auth.js
-import { defineStore } from 'pinia';
-import axios from 'axios';
-import router from '../router';
+import { defineStore } from 'pinia'
+import axios from 'axios'
+import router from '../router'
 
 export const useAuthStore = defineStore('auth', {
   state: () => ({
-    user: JSON.parse(localStorage.getItem('user')) || null, // Cargar de localStorage
-    token: localStorage.getItem('token') || null,
+    user: JSON.parse(localStorage.getItem('user')) || null,
     loading: false,
     error: null,
   }),
   getters: {
-    isAuthenticated: (state) => !!state.user && !!state.token,
-    isAdmin: (state) => state.user?.role === 'admin',
+    // La autenticación ahora depende únicamente de que tengamos un user cargado.
+    // Si la cookie expira, el backend responderá 401 y el interceptor hará logout.
+    isAuthenticated: state => !!state.user,
+    isAdmin: state => state.user?.role === 'admin',
   },
   actions: {
     async login(credentials) {
-      this.loading = true;
-      this.error = null;
+      this.loading = true
+      this.error = null
       try {
-        const response = await axios.post(`${import.meta.env.VITE_API_URL}/api/login`, credentials);
-        this.user = response.data.user;
-        this.token = response.data.token;
+        const response = await axios.post(`/api/login`, credentials)
+        this.user = response.data.user
 
-        // Guardar en localStorage para persistencia
-        localStorage.setItem('user', JSON.stringify(this.user));
-        localStorage.setItem('token', this.token);
+        // Solo guardamos el profile del usuario, el token ya está seguro en la Cookie
+        localStorage.setItem('user', JSON.stringify(this.user))
 
-        // Redirigir a la página principal después del login
-        // --- Lógica de redirección mejorada ---
         if (this.isAdmin) {
-          router.push('/');
+          router.push('/')
         } else {
-          router.push('/lista-correos'); // Redirige a los editores a la lista de correos
+          router.push('/lista-correos')
         }
       } catch (error) {
-        this.error = error.response?.data?.message || 'Error de conexión o credenciales inválidas.';
+        this.error = error.response?.data?.message || 'Error de conexión o credenciales inválidas.'
       } finally {
-        this.loading = false;
+        this.loading = false
       }
     },
-    logout() {
-      this.user = null;
-      this.token = null;
-      localStorage.removeItem('user');
-      localStorage.removeItem('token');
-      // Redirigir al login
-      router.push('/login');
+    async logout() {
+      try {
+        await axios.post('/api/logout')
+      } catch (error) {
+        console.error('Error al cerrar sesión en el servidor', error)
+      }
+
+      this.user = null
+      localStorage.removeItem('user')
+      router.push('/login')
     },
     async register(userData) {
-      this.loading = true;
-      this.error = null;
+      this.loading = true
+      this.error = null
       try {
-        const response = await axios.post(`${import.meta.env.VITE_API_URL}/api/register`, userData);
-        this.error = null; // No hay error si el registro es exitoso
-        return response.data; // Devolver la respuesta para mostrar un mensaje
+        const response = await axios.post(`${import.meta.env.VITE_API_URL}/api/register`, userData)
+        this.error = null // No hay error si el registro es exitoso
+        return response.data // Devolver la respuesta para mostrar un mensaje
       } catch (error) {
-        this.error = error.response?.data?.message || 'Error de conexión o registro fallido.';
+        this.error = error.response?.data?.message || 'Error de conexión o registro fallido.'
       } finally {
-        this.loading = false;
+        this.loading = false
       }
     },
   },
-});
+})

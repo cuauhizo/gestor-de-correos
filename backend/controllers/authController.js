@@ -38,9 +38,24 @@ exports.login = async (req, res) => {
     const token = jwt.sign({ user: { id: user.id, username: user.username, role: user.role } }, JWT_SECRET, {
       expiresIn: JWT_EXPIRES_IN,
     })
-    res.json({ token, user: { id: user.id, username: user.username, role: user.role } })
+
+    // <-- NUEVO: Configurar y enviar la cookie
+    res.cookie('jwt_token', token, {
+      httpOnly: true, // Evita acceso desde JS (XSS)
+      secure: process.env.NODE_ENV === 'production', // Solo HTTPS en producción
+      sameSite: 'lax', // Ayuda a prevenir CSRF
+      maxAge: 60 * 60 * 1000, // 1 hora en milisegundos (coincide con JWT_EXPIRES_IN)
+    })
+
+    // Ya no enviamos el token en el JSON
+    res.json({ user: { id: user.id, username: user.username, role: user.role } })
   } catch (error) {
     console.error('Error en el login:', error)
     res.status(500).json({ message: 'Error interno del servidor.' })
   }
+}
+
+exports.logout = (req, res) => {
+  res.clearCookie('jwt_token')
+  res.json({ message: 'Sesión cerrada exitosamente.' })
 }

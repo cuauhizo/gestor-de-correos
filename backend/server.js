@@ -1,6 +1,3 @@
-// backend/server.js
-// Archivo principal del servidor Express.js para la aplicación de gestión de correos.
-// Carga las variables de entorno desde el archivo .env
 require('dotenv').config()
 
 // --- Módulos de Node.js ---
@@ -20,6 +17,7 @@ const sectionTemplateRoutes = require('./routes/sectionTemplateRoutes')
 const statsRoutes = require('./routes/statsRoutes')
 const app = express()
 const port = process.env.PORT || 3000
+const cookieParser = require('cookie-parser')
 
 // Rutas (Endpoints API)
 // --- Middleware Global ---
@@ -44,11 +42,12 @@ const corsOptions = {
   },
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
+  credentials: true, // <-- CRÍTICO: Permite que se envíen y reciban cookies
 }
 
 app.use(cors(corsOptions)) // Habilita CORS con tu configuración específica
-
 app.use(express.json()) // Habilita el parseo de JSON
+app.use(cookieParser())
 
 // Importar rutas
 app.use('/api', authRoutes) // Todas las rutas en authRoutes estarán prefijadas con /api
@@ -57,6 +56,7 @@ app.use('/api/emails-editable', emailRoutes)
 app.use('/api/users', userRoutes)
 app.use('/api/section-templates', sectionTemplateRoutes)
 app.use('/api/stats', statsRoutes)
+
 // (Aquí usaremos las otras rutas)
 
 app.get('/', (req, res) => {
