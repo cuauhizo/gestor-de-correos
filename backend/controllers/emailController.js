@@ -1,6 +1,7 @@
 const emailService = require('../services/emailService')
 const { validationResult } = require('express-validator')
 const catchAsync = require('../utils/catchAsync')
+const mailer = require('../utils/mailer')
 
 // --- Funciones Auxiliares de Validación ---
 const validateRichContent = value => {
@@ -167,3 +168,32 @@ exports.forceUnlockEmail = catchAsync(async (req, res) => {
   await emailService.unlockEmail(uuid)
   res.status(200).json({ message: 'Correo desbloqueado por el administrador.' })
 })
+
+exports.sendTestEmailController = async (req, res) => {
+  try {
+    const { uuid } = req.params
+    const { to, subject, html } = req.body
+
+    // Validaciones básicas
+    if (!to || !html) {
+      return res.status(400).json({
+        success: false,
+        message: 'Faltan campos obligatorios: correo de destino o contenido HTML.',
+      })
+    }
+
+    // Usamos el utilitario para despachar el correo
+    await mailer.sendTestEmail(to, subject, html)
+
+    res.status(200).json({
+      success: true,
+      message: 'Correo de prueba enviado exitosamente',
+    })
+  } catch (error) {
+    console.error('Error en sendTestEmailController:', error)
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Error interno al enviar el correo de prueba',
+    })
+  }
+}

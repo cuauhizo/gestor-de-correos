@@ -93,7 +93,7 @@
                 </div>
               </fieldset>
 
-              <div class="d-flex flex-wrap justify-content-center gap-1 mt-3">
+              <!-- <div class="d-flex flex-wrap justify-content-center gap-1 mt-3">
                 <button @click="handleCancel" class="btn btn-danger">Cancelar</button>
                 <button @click="manualSaveChanges" :disabled="editorStore.isSaving" class="btn btn-primary">
                   {{ editorStore.isSaving ? 'Guardando...' : 'Guardar' }}
@@ -105,6 +105,24 @@
                 </button>
 
                 <button v-if="authStore.isAdmin" @click="copyShareLink" class="btn btn-secondary">Compartir Enlace</button>
+              </div> -->
+
+              <div class="sticky-action-bar mt-3 p-3 bg-white border-top shadow-sm rounded-bottom">
+                <div class="d-flex flex-wrap justify-content-center gap-2">
+                  <button @click="handleCancel" class="btn btn-outline-danger">Cancelar</button>
+                  <button @click="manualSaveChanges" :disabled="editorStore.isSaving" class="btn btn-primary px-4">
+                    <i-bi-save class="me-1" v-if="!editorStore.isSaving" />
+                    {{ editorStore.isSaving ? 'Guardando...' : 'Guardar' }}
+                  </button>
+                  <button @click="sendTestEmail" :disabled="isSendingTest" class="btn btn-info text-white">
+                    <i-bi-envelope-paper class="me-1" v-if="!isSendingTest" />
+                    {{ isSendingTest ? 'Enviando...' : 'Enviar Prueba' }}
+                  </button>
+                </div>
+                <div class="d-flex flex-wrap justify-content-center gap-2 mt-2">
+                  <button @click="copyHtmlToClipboard" class="btn btn-sm btn-success">Copiar HTML</button>
+                  <button v-if="authStore.isAdmin" @click="copyShareLink" class="btn btn-sm btn-secondary">Compartir Enlace</button>
+                </div>
               </div>
             </div>
           </div>
@@ -189,7 +207,7 @@
     try {
       const htmlContent = generateFinalHtml(true)
 
-      await api.post(`/emails-editable/${uuid}/send-test`, {
+      await api.post(`/api/emails-editable/${uuid}/send-test`, {
         to: emailDestino,
         subject: `[Prueba] ${editorStore.templateName || 'Gestor de Correos'}`,
         html: htmlContent,
@@ -567,5 +585,14 @@
       0 4px 6px -4px rgb(0 0 0 / 0.1);
     transform: scale(1.02);
     opacity: 0.9;
+  }
+
+  .sticky-action-bar {
+    position: sticky;
+    bottom: 0;
+    z-index: 10;
+    margin-left: -1rem; /* Ajustes para compensar el padding del card padre */
+    margin-right: -1rem;
+    margin-bottom: -1rem;
   }
 </style>

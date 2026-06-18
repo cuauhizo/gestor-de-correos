@@ -6,13 +6,16 @@ const emailController = require('../controllers/emailController')
 const { protect, admin } = require('../middleware/authMiddleware')
 const { checkLock } = require('../middleware/lockMiddleware')
 
+// <-- RUTA CORREGIDA PARA EL ENVÍO DE PRUEBA -->
+router.post('/:uuid/send-test', protect, emailController.sendTestEmailController)
+
 // Rutas de la colección de correos
 router.get('/', protect, emailController.getAllEmails)
 router.post('/', protect, [body('template_id').notEmpty(), body('initial_content').isObject().notEmpty()], emailController.createEmail)
 
 // Rutas para un correo específico
 router.get('/:uuid', protect, emailController.getEmailByUuid)
-router.put('/:uuid', protect, checkLock, /* validación... */ emailController.updateEmail)
+router.put('/:uuid', protect, checkLock, emailController.updateEmail)
 router.delete('/:uuid', protect, emailController.deleteEmail)
 
 // Rutas de bloqueo
