@@ -52,10 +52,20 @@ export const useTemplateStore = defineStore('templates', () => {
       const response = await axios.delete(`/api/templates/${id}`)
       // Eliminamos el template del estado local para una UI más rápida
       templates.value = templates.value.filter(t => t.id !== id)
-      return response.data
+      
+      // Aseguramos que devolvemos la estructura que espera la vista
+      return {
+        success: true,
+        message: response.data.message || 'Template eliminado exitosamente.'
+      }
     } catch (err) {
       console.error('Error al eliminar template:', err)
-      throw err.response?.data || new Error('Error al eliminar el template.')
+      
+      // EN LUGAR DE THROW, HACEMOS RETURN
+      return {
+        success: false,
+        message: err.response?.data?.message || 'Error al eliminar el template.'
+      }
     }
   }
 

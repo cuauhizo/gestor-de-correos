@@ -61,14 +61,31 @@ exports.updateTemplate = catchAsync(async (req, res) => {
 // DELETE /api/templates/:id
 exports.deleteTemplate = catchAsync(async (req, res) => {
   const { id } = req.params
-  const affectedRows = await templateService.deleteTemplate(id)
+  let affectedRows
+
+  try {
+    // Intentamos eliminarlo en el servicio
+    affectedRows = await templateService.deleteTemplate(id)
+  } catch (error) {
+    // Si MySQL nos lanza el error de "llave foránea" (el template está en uso)
+    if (error.code === 'ER_ROW_IS_REFERENCED_2') {
+      const customError = new Error('No puedes eliminar este template porque hay correos guardados que lo están utilizando. Elimina esos correos primero.')
+      customError.statusCode = 400 // Bad Request
+      throw customError // Lo lanzamos para que catchAsync lo atrape
+    }
+    // Si es un error distinto, simplemente lo dejamos pasar
+    throw error
+  }
 
   if (affectedRows === 0) {
     const error = new Error('Template no encontrado para eliminar.')
     error.statusCode = 404
     throw error
   }
-  res.json({ message: 'Template eliminado exitosamente.' })
+  
+  // (Opcional pero recomendado) Devolver success: true ayuda a que tu frontend 
+  // pinte el toast verde en lugar del rojo.
+  res.json({ success: true, message: 'Template eliminado exitosamente.' })
 })
 
 // GET /api/templates/library/:id

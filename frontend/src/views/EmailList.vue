@@ -12,7 +12,7 @@
     <div v-if="emailStore.loading" class="mb-4">
       <ul class="list-group">
         <li v-for="i in 4" :key="'skel-email-' + i" class="list-group-item d-flex justify-content-between align-items-center py-3">
-          <div class="flex-grow-1">
+          <div class="grow">
             <SkeletonLoader width="40%" height="20px" class="mb-2 d-block" />
             <SkeletonLoader width="60%" height="15px" class="mb-1 d-block" />
             <SkeletonLoader width="50%" height="15px" class="d-block" />
@@ -33,7 +33,7 @@
 
       <ul class="list-group" v-else>
         <li v-for="email in filteredEmails" :key="email.uuid" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center transition-hover">
-          <div class="flex-grow-1">
+          <div class="grow">
             <strong class="text-primary fs-5">{{ email.template_name }}</strong>
             <br />
             <small class="text-muted">
