@@ -1,5 +1,5 @@
 const jwt = require('jsonwebtoken')
-const JWT_SECRET = process.env.JWT_SECRET || 'clave_secreta_muy_segura'
+const JWT_SECRET = process.env.JWT_SECRET
 
 // Middleware para verificar si el token JWT es válido y obtener la información del usuario
 const protect = (req, res, next) => {

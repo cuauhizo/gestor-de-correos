@@ -6,6 +6,8 @@ frontend/node_modules/
 # Ignorar archivos de bloqueo de paquetes
 package-lock.json
 yarn.lock
+Untitled-1.html
+src/Untitled-2.html
 
 # Ignorar archivos de entorno (contienen credenciales)
 .env

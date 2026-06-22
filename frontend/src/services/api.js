@@ -1,4 +1,5 @@
 import axios from 'axios'
+import router from '../router'
 
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL || 'http://localhost:3000', // Asegúrate de que coincida con la URL de tu backend
@@ -15,8 +16,8 @@ api.interceptors.response.use(
       localStorage.removeItem('user')
 
       // Solo redirigimos si no estamos ya en la página de login
-      if (window.location.pathname !== '/login') {
-        window.location.href = '/login'
+      if (router.currentRoute.value.path !== '/login') {
+        router.push('/login')
       }
     }
     return Promise.reject(error)

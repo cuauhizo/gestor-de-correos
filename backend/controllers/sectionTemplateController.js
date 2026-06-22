@@ -1,5 +1,6 @@
 const sectionTemplateService = require('../services/sectionTemplateService')
 const catchAsync = require('../utils/catchAsync')
+const { validationResult } = require('express-validator')
 
 exports.getAllSectionTemplates = catchAsync(async (req, res) => {
   const sections = await sectionTemplateService.findAll()
@@ -7,27 +8,25 @@ exports.getAllSectionTemplates = catchAsync(async (req, res) => {
 })
 
 exports.createSectionTemplate = catchAsync(async (req, res) => {
-  const { name, type_key, html_content } = req.body
-
-  if (!name || !type_key || !html_content) {
-    const error = new Error('Todos los campos son requeridos.')
-    error.statusCode = 400
-    throw error
+  const errors = validationResult(req)
+  if (!errors.isEmpty()) {
+    return res.status(400).json({ success: false, message: errors.array()[0].msg })
   }
 
+  const { name, type_key, html_content } = req.body
+
   const newSection = await sectionTemplateService.create({ name, type_key, html_content })
-  res.status(201).json(newSection)
+  res.status(201).json({ success: true, message: 'Plantilla de sección creada exitosamente.', data: newSection })
 })
 
 exports.updateSectionTemplate = catchAsync(async (req, res) => {
+  const errors = validationResult(req)
+  if (!errors.isEmpty()) {
+    return res.status(400).json({ success: false, message: errors.array()[0].msg })
+  }
+
   const { id } = req.params
   const { name, type_key, html_content } = req.body
-
-  if (!name || !type_key || !html_content) {
-    const error = new Error('Todos los campos son requeridos.')
-    error.statusCode = 400
-    throw error
-  }
 
   const affectedRows = await sectionTemplateService.update(id, { name, type_key, html_content })
 
@@ -37,7 +36,7 @@ exports.updateSectionTemplate = catchAsync(async (req, res) => {
     throw error
   }
 
-  res.json({ message: 'Plantilla de sección actualizada exitosamente.' })
+  res.json({ success: true, message: 'Plantilla de sección actualizada exitosamente.' })
 })
 
 exports.deleteSectionTemplate = catchAsync(async (req, res) => {
@@ -50,5 +49,5 @@ exports.deleteSectionTemplate = catchAsync(async (req, res) => {
     throw error
   }
 
-  res.json({ message: 'Plantilla de sección eliminada exitosamente.' })
+  res.json({ success: true, message: 'Plantilla de sección eliminada exitosamente.' })
 })

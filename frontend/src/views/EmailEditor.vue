@@ -109,13 +109,11 @@
 
               <div class="sticky-action-bar mt-3 p-3 bg-white border-top shadow-sm rounded-bottom">
                 <div class="d-flex flex-wrap justify-content-center gap-2">
-                  <button @click="handleCancel" class="btn btn-outline-danger">Cancelar</button>
-                  <button @click="manualSaveChanges" :disabled="editorStore.isSaving" class="btn btn-primary px-4">
-                    <i-bi-save class="me-1" v-if="!editorStore.isSaving" />
+                  <button @click="handleCancel" class="btn btn-sm btn-danger">Cancelar</button>
+                  <button @click="manualSaveChanges" :disabled="editorStore.isSaving" class="btn btn-sm btn-primary px-4">
                     {{ editorStore.isSaving ? 'Guardando...' : 'Guardar' }}
                   </button>
-                  <button @click="sendTestEmail" :disabled="isSendingTest" class="btn btn-info text-white">
-                    <i-bi-envelope-paper class="me-1" v-if="!isSendingTest" />
+                  <button @click="sendTestEmail" :disabled="isSendingTest" class="btn btn-sm btn-info text-white">
                     {{ isSendingTest ? 'Enviando...' : 'Enviar Prueba' }}
                   </button>
                 </div>

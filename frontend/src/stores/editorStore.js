@@ -4,6 +4,7 @@ import { ref, reactive } from 'vue'
 import { useAuthStore } from './auth'
 import axios from '../services/api'
 import { v4 as uuidv4 } from 'uuid'
+import { EDITOR_DEFAULTS } from '../utils/constants'
 
 export const useEditorStore = defineStore('editor', () => {
   // --- State ---
@@ -164,10 +165,10 @@ export const useEditorStore = defineStore('editor', () => {
     }
 
     // --- Definición del contenido de relleno ---
-    const LOREM_IPSUM_TITLE = 'Lorem Ipsum Dolor Sit Amet'
-    const LOREM_IPSUM_PARAGRAPH = 'Lorem ipsum dolor sit amet, consectetur adipiscing elit.'
-    const PLACEHOLDER_URL = 'https://www.ejemplo.com/destino'
-    const PLACEHOLDER_IMG_URL = 'https://placehold.co/600x300'
+    const LOREM_IPSUM_TITLE = EDITOR_DEFAULTS.LOREM_IPSUM_TITLE
+    const LOREM_IPSUM_PARAGRAPH = EDITOR_DEFAULTS.LOREM_IPSUM_PARAGRAPH
+    const PLACEHOLDER_URL = EDITOR_DEFAULTS.PLACEHOLDER_URL
+    const PLACEHOLDER_IMG_URL = EDITOR_DEFAULTS.PLACEHOLDER_IMG_URL
 
     const newContent = {}
     const sectionHTML = sectionTemplate.html_content

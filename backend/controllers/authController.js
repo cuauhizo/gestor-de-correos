@@ -3,7 +3,7 @@ const jwt = require('jsonwebtoken')
 const authService = require('../services/authService')
 const { validationResult } = require('express-validator')
 const catchAsync = require('../utils/catchAsync')
-const JWT_SECRET = process.env.JWT_SECRET || 'clave_secreta_muy_segura'
+const JWT_SECRET = process.env.JWT_SECRET
 const JWT_EXPIRES_IN = '1h'
 
 exports.register = catchAsync(async (req, res) => {

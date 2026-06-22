@@ -1,6 +1,7 @@
 const userService = require('../services/userService')
 const authService = require('../services/authService')
 const catchAsync = require('../utils/catchAsync')
+const { validationResult } = require('express-validator') // <-- Importamos validationResult
 
 // GET /api/users
 exports.getAllUsers = catchAsync(async (req, res) => {
@@ -10,13 +11,14 @@ exports.getAllUsers = catchAsync(async (req, res) => {
 
 // POST /api/users
 exports.createUser = catchAsync(async (req, res) => {
-  const { username, password } = req.body
-
-  if (!username || !password || password.length < 6) {
-    const error = new Error('Nombre de usuario y contraseña (mín. 6 caracteres) son requeridos.')
-    error.statusCode = 400
-    throw error
+  // Comprobamos si las validaciones de la ruta fallaron
+  const errors = validationResult(req)
+  if (!errors.isEmpty()) {
+    // Retornamos el primer mensaje de error para que lo lea el Frontend
+    return res.status(400).json({ success: false, message: errors.array()[0].msg })
   }
+
+  const { username, password } = req.body
 
   const existingUser = await authService.findUserByUsername(username)
   if (existingUser) {
@@ -26,27 +28,21 @@ exports.createUser = catchAsync(async (req, res) => {
   }
 
   await authService.createUser(username, password)
-  res.status(201).json({ message: 'Usuario creado exitosamente.' })
+  res.status(201).json({ success: true, message: 'Usuario creado exitosamente.' })
 })
 
 // PUT /api/users/:id
 exports.updateUser = catchAsync(async (req, res) => {
+  const errors = validationResult(req)
+  if (!errors.isEmpty()) {
+    return res.status(400).json({ success: false, message: errors.array()[0].msg })
+  }
+
   const { id } = req.params
   const { username, role, password } = req.body
 
-  if (!username || !role) {
-    const error = new Error('Nombre de usuario y rol son requeridos.')
-    error.statusCode = 400
-    throw error
-  }
-  if (password && password.length < 6) {
-    const error = new Error('La nueva contraseña debe tener al menos 6 caracteres.')
-    error.statusCode = 400
-    throw error
-  }
-
   await userService.updateUser(id, { username, role, password })
-  res.json({ message: 'Usuario actualizado exitosamente.' })
+  res.json({ success: true, message: 'Usuario actualizado exitosamente.' })
 })
 
 // DELETE /api/users/:id
@@ -66,5 +62,5 @@ exports.deleteUser = catchAsync(async (req, res) => {
     throw error
   }
 
-  res.json({ message: 'Usuario eliminado exitosamente.' })
+  res.json({ success: true, message: 'Usuario eliminado exitosamente.' })
 })
