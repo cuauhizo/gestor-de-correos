@@ -1,11 +1,11 @@
 <template>
   <div class="card p-3 mb-3 section-card">
     <div class="section-header">
-      <div class="section-controls d-flex align-items-center gap-1">
+      <div class="section-controls d-flex align-items-center gap-1 flex-grow-1" @click="isCollapsed = !isCollapsed" style="cursor: pointer" title="Clic para expandir/colapsar">
         <span class="drag-handle" title="Arrastrar para reordenar">
           <i-bi-grip-vertical />
         </span>
-        <h5 class="section-title">
+        <h5 class="section-title text-dark">
           {{ formatSectionType(section.type) }}
         </h5>
       </div>
@@ -14,10 +14,11 @@
           <i-bi-chevron-down v-if="isCollapsed" />
           <i-bi-chevron-up v-else />
         </button>
-        <button v-if="authStore.isAdmin" @click="isEditingStructure = !isEditingStructure"
-          :class="['btn', 'btn-sm', isEditingStructure ? 'btn-warning' : 'btn-outline-warning']"
-          title="Editar HTML de la estructura">
+        <button v-if="authStore.isAdmin" @click="isEditingStructure = !isEditingStructure" :class="['btn', 'btn-sm', isEditingStructure ? 'btn-warning' : 'btn-outline-warning']" title="Editar HTML de la estructura">
           <i-bi-braces />
+        </button>
+        <button @click="$emit('duplicate')" class="btn btn-sm btn-outline-primary" title="Duplicar sección">
+          <i-bi-files />
         </button>
         <button @click="$emit('delete')" class="btn btn-sm btn-outline-danger" title="Eliminar sección">
           <i-entypo:trash />
@@ -28,19 +29,18 @@
       <div v-if="isEditingStructure">
         <label class="form-label fw-bold text-warning">Editando HTML de la Estructura (Avanzado)</label>
         <p class="form-text text-muted small">
-          <b>Advertencia:</b> Si eliminas un placeholder <code v-pre>{{...}}</code>, su contenido se perderá.
-          Si añades uno nuevo, aparecerá en el editor de contenido.
+          <b>Advertencia:</b>
+          Si eliminas un placeholder
+          <code v-pre>{{...}}</code>
+          , su contenido se perderá. Si añades uno nuevo, aparecerá en el editor de contenido.
         </p>
-        <textarea :value="section.html" @input="updateStructure($event.target.value)"
-          class="form-control font-monospace" rows="15" placeholder="Pega aquí el HTML de la sección..."></textarea>
+        <textarea :value="section.html" @input="updateStructure($event.target.value)" class="form-control font-monospace" rows="15" placeholder="Pega aquí el HTML de la sección..."></textarea>
       </div>
       <template v-else>
         <template v-for="(value, key) in section.content" :key="key">
           <div v-if="!key.startsWith('image_')" class="mb-3" :data-editor-wrapper-key="`${section.id}-${key}`">
             <div class="d-flex justify-content-between align-items-center mb-1">
-              <label :for="`${section.id}-${key}`" class="form-label fw-bold mb-0">
-                {{ capitalizeFirstLetter(key.replace(/_/g, ' ')) }}:
-              </label>
+              <label :for="`${section.id}-${key}`" class="form-label fw-bold mb-0">{{ capitalizeFirstLetter(key.replace(/_/g, ' ')) }}:</label>
               <!-- <button v-if="!isUrlField(key)" @click="toggleHtmlMode(key)" class="btn btn-sm btn-outline-secondary"
                 :title="htmlMode[key] ? 'Ver Editor Visual' : 'Ver Código HTML'">
                 <i-bi-code-slash v-if="!htmlMode[key]" />
@@ -48,19 +48,16 @@
               </button> -->
             </div>
             <template v-if="isUrlField(key)">
-              <input :id="`${section.id}-${key}`" :value="value" @input="updateContent(key, $event.target.value)"
-                type="url" class="form-control" placeholder="Introduce una URL de destino" />
+              <input :id="`${section.id}-${key}`" :value="value" @input="updateContent(key, $event.target.value)" type="url" class="form-control" placeholder="Introduce una URL de destino" />
             </template>
             <template v-else>
-              <TiptapEditor v-if="!htmlMode[key]" :modelValue="value"
-                @update:modelValue="newValue => updateContent(key, newValue)" :showHtmlToggle="true"
-                :isHtmlMode="htmlMode[key]" @toggle-html="toggleHtmlMode(key)" />
+              <TiptapEditor v-if="!htmlMode[key]" :modelValue="value" @update:modelValue="newValue => updateContent(key, newValue)" :showHtmlToggle="true" :isHtmlMode="htmlMode[key]" @toggle-html="toggleHtmlMode(key)" />
 
-              <textarea v-else :value="value" @input="updateContent(key, $event.target.value)"
-                class="form-control font-monospace" rows="10" placeholder="Introduce tu código HTML..."></textarea>
+              <textarea v-else :value="value" @input="updateContent(key, $event.target.value)" class="form-control font-monospace" rows="10" placeholder="Introduce tu código HTML..."></textarea>
 
               <button v-if="htmlMode[key]" @click="toggleHtmlMode(key)" class="btn btn-sm btn-outline-secondary mt-2">
-                <i-bi-eye /> Ver Editor Visual
+                <i-bi-eye />
+                Ver Editor Visual
               </button>
             </template>
           </div>
@@ -71,102 +68,117 @@
 </template>
 
 <script setup>
-import { ref, defineExpose, reactive } from 'vue'
-import TiptapEditor from './TiptapEditor.vue'
-import { useAuthStore } from '../stores/auth.js'
-import { capitalizeFirstLetter } from '../utils/helpers.js'
-import { useEditorStore } from '../stores/editorStore.js'
+  import { ref, defineExpose, reactive } from 'vue'
+  import TiptapEditor from './TiptapEditor.vue'
+  import { useAuthStore } from '../stores/auth.js'
+  import { capitalizeFirstLetter } from '../utils/helpers.js'
+  import { useEditorStore } from '../stores/editorStore.js'
 
-const props = defineProps({
-  section: {
-    type: Object,
-    required: true,
-  },
-})
+  const props = defineProps({
+    section: {
+      type: Object,
+      required: true,
+    },
+  })
 
-// Actualizamos los emits para incluir los nuevos eventos
-const emit = defineEmits(['delete'])
-const authStore = useAuthStore()
-const editorStore = useEditorStore()
-const isCollapsed = ref(false)
-const htmlMode = reactive({})
-const setCollapsed = value => {
-  isCollapsed.value = value
-}
-const isEditingStructure = ref(false)
-
-
-defineExpose({
-  setCollapsed,
-})
-
-function updateContent(key, newValue) {
-  // Llamamos directamente a la acción del store para actualizar el contenido.
-  editorStore.updateSectionContent(props.section.id, key, newValue)
-}
-
-function formatSectionType(type) {
-  // Si 'type' no es un string, devuelve un texto por defecto.
-  if (typeof type !== 'string') {
-    return 'Sección'
+  // Actualizamos los emits para incluir los nuevos eventos
+  const emit = defineEmits(['delete', 'duplicate'])
+  const authStore = useAuthStore()
+  const editorStore = useEditorStore()
+  const isCollapsed = ref(false)
+  const htmlMode = reactive({})
+  const setCollapsed = value => {
+    isCollapsed.value = value
   }
-  return capitalizeFirstLetter(type.replace(/-/g, ' '))
-}
+  const isEditingStructure = ref(false)
 
-function toggleHtmlMode(key) {
-  htmlMode[key] = !htmlMode[key]
-}
+  defineExpose({
+    setCollapsed,
+  })
 
-function isUrlField(key) {
-  return key.includes('enlace') || key.endsWith('_url') || key === 'url'
-}
+  function updateContent(key, newValue) {
+    // Llamamos directamente a la acción del store para actualizar el contenido.
+    editorStore.updateSectionContent(props.section.id, key, newValue)
+  }
 
-function updateStructure(newHtml) {
-  editorStore.updateSectionHtml(props.section.id, newHtml)
-}
+  function formatSectionType(type) {
+    // Si 'type' no es un string, devuelve un texto por defecto.
+    if (typeof type !== 'string') {
+      return 'Sección'
+    }
+    return capitalizeFirstLetter(type.replace(/-/g, ' '))
+  }
+
+  function toggleHtmlMode(key) {
+    htmlMode[key] = !htmlMode[key]
+  }
+
+  function isUrlField(key) {
+    return key.includes('enlace') || key.endsWith('_url') || key === 'url'
+  }
+
+  function updateStructure(newHtml) {
+    editorStore.updateSectionHtml(props.section.id, newHtml)
+  }
 </script>
 
 <style scoped>
-.section-card {
-  border: 1px solid #dee2e6;
-  background-color: #f8f9fa;
-}
+  .section-card {
+    border: 1px solid #dee2e6;
+    background-color: #f8f9fa;
+  }
 
-.section-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 1rem;
-  padding-bottom: 0.5rem;
-  border-bottom: 1px solid #e9ecef;
-}
+  .section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid #e9ecef;
+  }
 
-.section-title {
-  margin: 0;
-  font-size: 1.1rem;
-}
+  .section-title {
+    margin: 0;
+    font-size: 1.1rem;
+  }
 
-.drag-handle {
-  cursor: move;
-  /* O 'grab' */
-  color: #6c757d;
-  font-size: 1.2rem;
-}
+  .drag-handle {
+    cursor: move;
+    /* O 'grab' */
+    color: #6c757d;
+    font-size: 1.2rem;
+  }
 
-.section-title button {
-  font-size: 1.1rem;
-  color: #212529;
-}
+  .section-title button {
+    font-size: 1.1rem;
+    color: #212529;
+  }
 
-.font-monospace {
-  font-family: 'Courier New', Courier, monospace;
-  background-color: #282c34;
-  color: #abb2bf;
-}
+  .font-monospace {
+    font-family: 'Courier New', Courier, monospace;
+    background-color: #282c34;
+    color: #abb2bf;
+  }
 
-.font-monospace {
-  font-family: 'Courier New', Courier, monospace;
-  background-color: #282c34;
-  color: #abb2bf;
-}
+  .font-monospace {
+    font-family: 'Courier New', Courier, monospace;
+    background-color: #282c34;
+    color: #abb2bf;
+  }
+
+  /* Ilumina la sección completa si el usuario está interactuando con cualquier campo interno */
+  .section-card:focus-within {
+    border-color: #0d6efd !important;
+    box-shadow:
+      0 2px 6px rgba(13, 110, 253, 0.12),
+      0 0 0 0.25rem rgba(13, 110, 253, 0.15) !important;
+    background-color: #ffffff !important;
+    /* transform: scale(1.003);
+    transition: all 0.2s ease-in-out; */
+  }
+
+  /* Opcional: Cambia el color del icono de arrastre cuando la sección esté activa */
+  .section-card:focus-within .drag-handle {
+    color: #0d6efd !important;
+  }
 </style>

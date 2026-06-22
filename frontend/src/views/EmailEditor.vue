@@ -77,36 +77,14 @@
                 <AddSectionModal :is-visible="isAddModalVisible" @close="isAddModalVisible = false" />
               </div>
               <fieldset :disabled="editorStore.isReadOnly">
-                <div class="scroll">
+                <div class="scroll pt-2">
                   <draggable v-model="editorStore.editableContent.sections" item-key="id" handle=".drag-handle" @end="handleContentChange" ghost-class="ghost">
                     <template #item="{ element: section, index }">
-                      <SectionEditor
-                        :ref="
-                          el => {
-                            if (el) sectionEditorRefs[index] = el
-                          }
-                        "
-                        :section="section"
-                        @delete="deleteSection(section.id)" />
+                      <SectionEditor :ref="el => setSectionRef(el, section.id)" :section="section" @delete="deleteSection(section.id)" @duplicate="duplicateSection(section.id)" />
                     </template>
                   </draggable>
                 </div>
               </fieldset>
-
-              <!-- <div class="d-flex flex-wrap justify-content-center gap-1 mt-3">
-                <button @click="handleCancel" class="btn btn-danger">Cancelar</button>
-                <button @click="manualSaveChanges" :disabled="editorStore.isSaving" class="btn btn-primary">
-                  {{ editorStore.isSaving ? 'Guardando...' : 'Guardar' }}
-                </button>
-                <button @click="copyHtmlToClipboard" class="btn btn-success">Copiar HTML</button>
-
-                <button @click="sendTestEmail" :disabled="isSendingTest" class="btn btn-info text-white">
-                  {{ isSendingTest ? 'Enviando...' : 'Enviar Prueba' }}
-                </button>
-
-                <button v-if="authStore.isAdmin" @click="copyShareLink" class="btn btn-secondary">Compartir Enlace</button>
-              </div> -->
-
               <div class="sticky-action-bar mt-3 p-3 bg-white border-top shadow-sm rounded-bottom">
                 <div class="d-flex flex-wrap justify-content-center gap-2">
                   <button @click="handleCancel" class="btn btn-sm btn-danger">Cancelar</button>
@@ -177,7 +155,7 @@
   const feedbackStore = useFeedbackStore()
   const uuid = route.params.uuid
   const isAddModalVisible = ref(false)
-  const sectionEditorRefs = ref([])
+  const sectionEditorRefs = ref(new Map())
   const modalStore = useModalStore()
   const previewWidth = ref('100%')
 
@@ -264,17 +242,17 @@
               }
             }
           } else if (target.tagName !== 'IMG' && event.type === 'dblclick') {
-            // 1. Buscamos la referencia al componente de forma segura
-            const sectionComponent = sectionEditorRefs.value.find(comp => comp && comp.section && comp.section.id === sectionId)
+            // 1. Buscamos la referencia directamente en el Map por su ID único (Instantáneo y 100% preciso)
+            const sectionComponent = sectionEditorRefs.value.get(sectionId)
 
             // 2. Si la encontramos, le decimos que se expanda
             if (sectionComponent) {
               sectionComponent.setCollapsed(false)
             }
 
-            // 3. Esperamos a que Vue actualice el DOM (la sección ya está visible)
+            // 3. Esperamos a que Vue actualice el DOM (la sección se renderiza y se vuelve visible)
             nextTick(() => {
-              // 4. Luego, llamamos a focusEditor
+              // 4. Luego, llamamos a focusEditor para poner el cursor e iluminar la tarjeta
               focusEditor(sectionId, contentKey)
             })
           }
@@ -561,13 +539,66 @@
     }
     editorStore.resetEditorState()
   })
+
+  const duplicateSection = sectionId => {
+    // 1. Buscamos el índice de la sección original en el arreglo del store
+    const index = editorStore.editableContent.sections.findIndex(s => s.id === sectionId)
+
+    if (index !== -1) {
+      const originalSection = editorStore.editableContent.sections[index]
+
+      // 2. Hacemos un clon profundo (Deep Copy) para romper la reactividad con el original
+      const clonedSection = JSON.parse(JSON.stringify(originalSection))
+
+      // 3. CRÍTICO: Le asignamos un nuevo ID único al clon para que vuedraggable y Vue no se confundan
+      clonedSection.id = crypto.randomUUID() // Usa la API nativa del navegador moderna
+
+      // 4. Lo insertamos en el arreglo exactamente una posición abajo del original
+      editorStore.editableContent.sections.splice(index + 1, 0, clonedSection)
+
+      // 5. Marcamos que hay cambios sin guardar para disparar el autoguardado
+      handleContentChange()
+
+      feedbackStore.show('Sección duplicada exitosamente.', 'success')
+    }
+  }
+
+  // Observa si se añaden nuevas secciones para hacer scroll automático hacia ellas
+  watch(
+    () => editorStore.editableContent.sections.length,
+    (newLength, oldLength) => {
+      // Si el número de secciones aumentó (significa que añadieron o duplicaron una)
+      if (newLength > oldLength) {
+        nextTick(() => {
+          // Buscamos el contenedor de scroll del editor izquierdo
+          const scrollContainer = document.querySelector('.scroll')
+          if (scrollContainer) {
+            // Hacemos un scroll suave hacia el fondo del contenedor
+            scrollContainer.scrollTo({
+              top: scrollContainer.scrollHeight,
+              behavior: 'smooth',
+            })
+          }
+        })
+      }
+    }
+  )
+
+  const setSectionRef = (el, id) => {
+    if (el) {
+      sectionEditorRefs.value.set(id, el)
+    } else {
+      sectionEditorRefs.value.delete(id)
+    }
+  }
 </script>
 
 <style scoped>
   .scroll {
     max-height: 2100px;
     overflow-y: auto;
-    padding-right: 10px;
+    padding-right: 4px;
+    padding-left: 4px;
   }
 
   .ghost {
