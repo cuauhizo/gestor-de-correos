@@ -25,4 +25,8 @@ router.put(
 
 router.delete('/:id', userController.deleteUser)
 
+router.get('/:id/permissions', userController.getUserPermissions)
+
+router.put('/:id/permissions', [body('templates').isArray().withMessage('Templates debe ser un arreglo.'), body('sections').isArray().withMessage('Sections debe ser un arreglo.')], userController.updateUserPermissions)
+
 module.exports = router

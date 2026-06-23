@@ -2,7 +2,7 @@
   <div class="card p-4 mt-5 mx-auto" style="max-width: 900px">
     <div class="d-flex justify-content-between align-items-center mb-4">
       <h1 class="card-title text-center mb-0">Correos Editables Guardados</h1>
-      <router-link to="/" class="btn btn-success">Crear Nuevo</router-link>
+      <router-link to="/" class="btn btn-success" v-if="authStore.isAdmin">Crear Nuevo</router-link>
     </div>
 
     <div class="mb-4" v-if="!emailStore.loading && !emailStore.error && emailStore.emails.length > 0">
@@ -50,9 +50,9 @@
             <br />
             <span v-if="email.locked_by" class="badge bg-warning text-dark mt-2">Bloqueado por: {{ email.locked_by_username || 'Usuario desconocido' }}</span>
           </div>
-          <div class="d-flex flex-column gap-2 ms-3">
+          <div class="d-flex gap-2">
             <button @click="handleEditClick(email)" class="btn btn-primary btn-sm">Editar</button>
-            <button v-if="authStore.isAdmin" @click="deleteEmailClick(email.uuid)" class="btn btn-outline-danger btn-sm">Eliminar</button>
+            <button v-if="authStore.isAdmin" @click="deleteEmailClick(email.uuid)" class="btn btn-danger btn-sm">Eliminar</button>
           </div>
         </li>
       </ul>

@@ -32,14 +32,9 @@
       <h2 class="h4 text-center mb-4">Biblioteca de Secciones</h2>
 
       <div class="mb-4" v-if="!store.loading && !store.error && store.sections.length > 0">
-        <input 
-          type="text" 
-          v-model="searchQuery" 
-          class="form-control" 
-          placeholder="Buscar por nombre de sección o clave..." 
-        />
+        <input type="text" v-model="searchQuery" class="form-control" placeholder="Buscar por nombre de sección o clave..." />
       </div>
-      
+
       <div v-if="store.loading">
         <ul class="list-group">
           <li v-for="i in 3" :key="'skel-sec-' + i" class="list-group-item d-flex justify-content-between align-items-center py-3">
@@ -56,30 +51,28 @@
       </div>
 
       <div v-else-if="store.error" class="text-center text-danger">{{ store.error }}</div>
-      
+
       <div v-else>
-        <p v-if="store.sections.length === 0" class="text-center text-secondary">
-          No hay secciones guardadas aún.
-        </p>
-        <p v-else-if="filteredSections.length === 0" class="text-center text-secondary">
-          No se encontraron resultados para "{{ searchQuery }}".
-        </p>
+        <p v-if="store.sections.length === 0" class="text-center text-secondary">No hay secciones guardadas aún.</p>
+        <p v-else-if="filteredSections.length === 0" class="text-center text-secondary">No se encontraron resultados para "{{ searchQuery }}".</p>
 
         <ul class="list-group" v-else>
           <li v-for="section in filteredSections" :key="section.id" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center transition-hover py-3">
             <div>
               <strong class="text-primary fs-5">{{ section.name }}</strong>
               <br />
-              <small class="text-muted">Clave: <strong>{{ section.type_key }}</strong></small>
+              <small class="text-muted">
+                Clave:
+                <strong>{{ section.type_key }}</strong>
+              </small>
             </div>
             <div class="d-flex gap-2">
               <button @click="startEdit(section)" class="btn btn-primary btn-sm">Editar</button>
-              <button @click="handleDelete(section.id)" class="btn btn-outline-danger btn-sm">Eliminar</button>
+              <button @click="handleDelete(section.id)" class="btn btn-danger btn-sm">Eliminar</button>
             </div>
           </li>
         </ul>
       </div>
-
     </div>
   </div>
 </template>
@@ -102,7 +95,7 @@
   const filteredSections = computed(() => {
     if (!searchQuery.value) return store.sections
     const lowerCaseQuery = searchQuery.value.toLowerCase()
-    
+
     return store.sections.filter(section => {
       const name = (section.name || '').toLowerCase()
       const typeKey = (section.type_key || '').toLowerCase()
@@ -166,7 +159,9 @@
 <style scoped>
   /* Efecto sutil al pasar el mouse por las filas */
   .transition-hover {
-    transition: background-color 0.2s ease, transform 0.1s ease;
+    transition:
+      background-color 0.2s ease,
+      transform 0.1s ease;
   }
   .transition-hover:hover {
     background-color: #f8f9fa;

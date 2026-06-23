@@ -3,7 +3,7 @@ const catchAsync = require('../utils/catchAsync')
 const { validationResult } = require('express-validator')
 
 exports.getAllSectionTemplates = catchAsync(async (req, res) => {
-  const sections = await sectionTemplateService.findAll()
+  const sections = await sectionTemplateService.findAll(req.user)
   res.json(sections)
 })
 

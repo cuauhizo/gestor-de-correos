@@ -1,6 +1,13 @@
 <template>
   <div class="container-fluid py-4">
     <div class="row">
+      <div class="col-12 mb-3">
+        <router-link to="/lista-correos" class="text-decoration-none text-secondary">
+          <i-bi-arrow-left />
+          Volver a correos guardados
+        </router-link>
+      </div>
+
       <div class="col-12 text-center mb-4">
         <h1>Editor de Contenido de Correo</h1>
       </div>
@@ -66,23 +73,33 @@
                     Añadir Sección
                   </button>
                   <div class="btn-group btn-group-sm">
-                    <button @click="collapseAll" class="btn btn-outline-secondary" title="Colapsar todo">
-                      <i-bi-arrows-collapse />
-                    </button>
                     <button @click="expandAll" class="btn btn-outline-secondary" title="Expandir todo">
                       <i-bi-arrows-expand />
+                    </button>
+                    <button @click="collapseAll" class="btn btn-outline-secondary" title="Colapsar todo">
+                      <i-bi-arrows-collapse />
                     </button>
                   </div>
                 </div>
                 <AddSectionModal :is-visible="isAddModalVisible" @close="isAddModalVisible = false" />
               </div>
               <fieldset :disabled="editorStore.isReadOnly">
-                <div class="scroll pt-2">
+                <div class="scroll">
                   <draggable v-model="editorStore.editableContent.sections" item-key="id" handle=".drag-handle" @end="handleContentChange" ghost-class="ghost">
                     <template #item="{ element: section, index }">
                       <SectionEditor :ref="el => setSectionRef(el, section.id)" :section="section" @delete="deleteSection(section.id)" @duplicate="duplicateSection(section.id)" />
                     </template>
                   </draggable>
+
+                  <div v-if="editorStore.editableContent.sections.length === 0" class="text-center p-5 mt-3 border border-2 border-dashed rounded bg-light">
+                    <i-bi-layout-text-window-reverse style="font-size: 3rem; color: #ccc" class="mb-3 d-block mx-auto" />
+                    <h5 class="text-muted">Este correo está vacío</h5>
+                    <p class="text-muted small mb-4">Añade secciones desde la biblioteca para empezar a armar tu correo.</p>
+                    <button @click="isAddModalVisible = true" class="btn btn-primary">
+                      <i-entypo:add-to-list />
+                      Añadir Primera Sección
+                    </button>
+                  </div>
                 </div>
               </fieldset>
               <div class="sticky-action-bar mt-3 p-3 bg-white border-top shadow-sm rounded-bottom">
@@ -170,26 +187,45 @@
   // --- Lógica del Componente ---
 
   const sendTestEmail = async () => {
-    const emailDestino = prompt('Introduce el correo electrónico para recibir la prueba:')
-    if (!emailDestino) return
+    // 1. Actualizamos el mensaje para indicar que acepta comas
+    const emailsInput = prompt('Introduce el(los) correo(s) para recibir la prueba (separados por comas):')
+    if (!emailsInput) return
 
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-    if (!emailRegex.test(emailDestino)) {
-      feedbackStore.show('Por favor ingresa un correo electrónico válido.', 'error')
+    // 2. Separamos el texto por comas, quitamos espacios en blanco y eliminamos vacíos
+    const emailsArray = emailsInput
+      .split(',')
+      .map(email => email.trim())
+      .filter(email => email.length > 0)
+
+    if (emailsArray.length === 0) {
+      feedbackStore.show('No se detectaron correos válidos.', 'error')
       return
     }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
+    // 3. Verificamos si hay algún correo mal escrito en la lista
+    const invalidEmails = emailsArray.filter(email => !emailRegex.test(email))
+
+    if (invalidEmails.length > 0) {
+      feedbackStore.show(`Correos inválidos: ${invalidEmails.join(', ')}`, 'error')
+      return
+    }
+
+    // 4. Volvemos a unir los correos válidos con una coma (como lo requiere Nodemailer)
+    const validEmailsString = emailsArray.join(',')
 
     isSendingTest.value = true
     try {
       const htmlContent = generateFinalHtml(true)
 
       await api.post(`/api/emails-editable/${uuid}/send-test`, {
-        to: emailDestino,
+        to: validEmailsString,
         subject: `[Prueba] ${editorStore.templateName || 'Gestor de Correos'}`,
         html: htmlContent,
       })
 
-      feedbackStore.show('¡Correo de prueba enviado exitosamente!', 'success')
+      feedbackStore.show('¡Correo(s) de prueba enviado(s) exitosamente!', 'success')
     } catch (error) {
       console.error('Error al enviar la prueba:', error)
       feedbackStore.show(error.response?.data?.message || 'Hubo un error al enviar el correo de prueba.', 'error')
@@ -518,6 +554,9 @@
                   table[width="772"], table[style*="width: 772px"],
                   table[width="680"], table[style*="width: 680px"] { width: 100% !important; }
                   img { max-width: 100% !important; height: auto !important; }
+                  td.column > *:not(img) {padding: 0 15px !important; display: block;}
+                  [data-section-type='one-col'] table td *:not(img) {padding: 0 15px !important;display: block;}
+                  [data-section-type='only-title'] table td,[data-section-type='only-content'] table td,[data-section-type='one-col-full'] table td,[data-section-type='one-col-full-v2'] table td {padding: 0 15px !important;}
               }
             </style>
           </head>
@@ -623,5 +662,9 @@
     margin-left: -1rem; /* Ajustes para compensar el padding del card padre */
     margin-right: -1rem;
     margin-bottom: -1rem;
+  }
+
+  .border-dashed {
+    border-style: dashed !important;
   }
 </style>

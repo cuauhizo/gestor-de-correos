@@ -1,9 +1,24 @@
-// backend/services/templateService.js
 const pool = require('../config/db')
 
 // Obtener todos los templates
-exports.getAllTemplates = async () => {
-  const [rows] = await pool.query('SELECT id, name, created_at FROM templates')
+exports.getAllTemplates = async user => {
+  // Si es admin, ve todo como hasta ahora
+  if (user.role === 'admin') {
+    const [rows] = await pool.query('SELECT id, name, created_at FROM templates')
+    return rows
+  }
+
+  // Si es editor, hacemos un JOIN para traer SOLO los que tiene asignados
+  const [rows] = await pool.execute(
+    `
+    SELECT t.id, t.name, t.created_at 
+    FROM templates t
+    INNER JOIN user_template_access uta ON t.id = uta.template_id
+    WHERE uta.user_id = ?
+  `,
+    [user.id]
+  )
+
   return rows
 }
 

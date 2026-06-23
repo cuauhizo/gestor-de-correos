@@ -21,7 +21,7 @@ const templateValidationRules = [
 ]
 
 // --- Definición de Rutas ---
-router.get('/', templateController.getAllTemplates) // Pública
+router.get('/', protect, templateController.getAllTemplates)
 
 router.get('/library/:id', protect, templateController.getTemplateLibrary)
 

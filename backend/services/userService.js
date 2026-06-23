@@ -23,3 +23,43 @@ exports.deleteUser = async id => {
   const [result] = await pool.execute('DELETE FROM users WHERE id = ?', [id])
   return result.affectedRows
 }
+
+exports.getUserPermissions = async userId => {
+  const [templateRows] = await pool.execute('SELECT template_id FROM user_template_access WHERE user_id = ?', [userId])
+  const [sectionRows] = await pool.execute('SELECT section_id FROM user_section_access WHERE user_id = ?', [userId])
+
+  return {
+    templates: templateRows.map(r => r.template_id),
+    sections: sectionRows.map(r => r.section_id),
+  }
+}
+
+exports.updateUserPermissions = async (userId, templates, sections) => {
+  const connection = await pool.getConnection()
+  try {
+    await connection.beginTransaction()
+
+    // 1. Limpiamos los permisos anteriores
+    await connection.execute('DELETE FROM user_template_access WHERE user_id = ?', [userId])
+    await connection.execute('DELETE FROM user_section_access WHERE user_id = ?', [userId])
+
+    // 2. Insertamos los nuevos templates permitidos
+    if (templates && templates.length > 0) {
+      const templateValues = templates.map(tId => [userId, tId])
+      await connection.query('INSERT INTO user_template_access (user_id, template_id) VALUES ?', [templateValues])
+    }
+
+    // 3. Insertamos las nuevas secciones permitidas
+    if (sections && sections.length > 0) {
+      const sectionValues = sections.map(sId => [userId, sId])
+      await connection.query('INSERT INTO user_section_access (user_id, section_id) VALUES ?', [sectionValues])
+    }
+
+    await connection.commit()
+  } catch (error) {
+    await connection.rollback()
+    throw error
+  } finally {
+    connection.release()
+  }
+}

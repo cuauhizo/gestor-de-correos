@@ -16,7 +16,7 @@
 
   let inactivityTimer
   let warningTimer
-  const INACTIVITY_TIME = 1000 * 60 * 30 // 30 minutos en milisegundos
+  const INACTIVITY_TIME = 1000 * 60 * 40 // 40 minutos en milisegundos
   const WARNING_TIME = 1000 * 60 // 1 minuto (60,000 ms) para la advertencia
 
   // Función que se ejecuta cuando el tiempo de inactividad se cumple
@@ -92,9 +92,6 @@
         <div class="collapse navbar-collapse" id="navbarNav">
           <ul class="navbar-nav">
             <template v-if="authStore.isAuthenticated">
-              <!-- <li class="nav-item" v-if="authStore.isAdmin">
-                <router-link to="/" class="nav-link" active-class="active">Crear Nuevo Correo</router-link>
-              </li> -->
               <li class="nav-item" v-if="authStore.isAdmin">
                 <router-link to="/crear-correo" class="nav-link" active-class="active">Crear Nuevo Correo</router-link>
               </li>
@@ -113,12 +110,6 @@
             </template>
           </ul>
           <ul class="navbar-nav ms-auto">
-            <!-- <li class="nav-item" v-if="!authStore.isAuthenticated">
-              <router-link to="/login" class="nav-link" active-class="active">Iniciar Sesión</router-link>
-            </li>
-            <li class="nav-item" v-if="!authStore.isAuthenticated">
-              <router-link to="/register" class="nav-link" active-class="active">Registro</router-link>
-            </li> -->
             <li class="nav-item" v-if="authStore.isAuthenticated">
               <span class="nav-link text-white">Hola, {{ authStore.user?.username }}!</span>
             </li>

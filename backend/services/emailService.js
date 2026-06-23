@@ -83,11 +83,11 @@ exports.deleteEmail = async uuid => {
 }
 
 exports.lockEmail = async (uuid, userId) => {
-  await pool.execute('UPDATE emails_editable SET is_locked = 1, locked_by_user_id = ? WHERE uuid = ?', [userId, uuid])
+  await pool.execute('UPDATE emails_editable SET is_locked = 1, locked_by_user_id = ?, updated_at = updated_at WHERE uuid = ?', [userId, uuid])
 }
 
 exports.unlockEmail = async uuid => {
-  await pool.execute('UPDATE emails_editable SET is_locked = 0, locked_by_user_id = NULL WHERE uuid = ?', [uuid])
+  await pool.execute('UPDATE emails_editable SET is_locked = 0, locked_by_user_id = NULL, updated_at = updated_at WHERE uuid = ?', [uuid])
 }
 
 // Obtenemos un email solo para verificar su estado de bloqueo

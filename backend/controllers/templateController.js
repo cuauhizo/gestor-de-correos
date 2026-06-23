@@ -5,7 +5,7 @@ const catchAsync = require('../utils/catchAsync')
 
 // GET /api/templates
 exports.getAllTemplates = catchAsync(async (req, res) => {
-  const templates = await templateService.getAllTemplates()
+  const templates = await templateService.getAllTemplates(req.user)
   res.json(templates)
 })
 
@@ -82,8 +82,8 @@ exports.deleteTemplate = catchAsync(async (req, res) => {
     error.statusCode = 404
     throw error
   }
-  
-  // (Opcional pero recomendado) Devolver success: true ayuda a que tu frontend 
+
+  // (Opcional pero recomendado) Devolver success: true ayuda a que tu frontend
   // pinte el toast verde en lugar del rojo.
   res.json({ success: true, message: 'Template eliminado exitosamente.' })
 })

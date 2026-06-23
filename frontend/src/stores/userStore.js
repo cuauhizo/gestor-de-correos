@@ -1,4 +1,3 @@
-// frontend/src/stores/userStore.js
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import axios from '../services/api'
@@ -27,7 +26,7 @@ export const useUserStore = defineStore('users', () => {
   async function createUser(userData) {
     try {
       const response = await axios.post('/api/users', userData)
-      await fetchUsers() // Actualiza la lista después de crear
+      await fetchUsers()
       return { success: true, message: response.data.message }
     } catch (err) {
       return { success: false, message: err.response?.data?.message || 'Error al crear usuario.' }
@@ -37,7 +36,7 @@ export const useUserStore = defineStore('users', () => {
   async function updateUser(id, userData) {
     try {
       const response = await axios.put(`/api/users/${id}`, userData)
-      await fetchUsers() // Actualiza la lista
+      await fetchUsers()
       return { success: true, message: response.data.message }
     } catch (err) {
       return { success: false, message: err.response?.data?.message || 'Error al actualizar usuario.' }
@@ -47,10 +46,29 @@ export const useUserStore = defineStore('users', () => {
   async function deleteUser(id) {
     try {
       const response = await axios.delete(`/api/users/${id}`)
-      users.value = users.value.filter(u => u.id !== id) // Actualiza la UI inmediatamente
+      users.value = users.value.filter(u => u.id !== id)
       return { success: true, message: response.data.message }
     } catch (err) {
       return { success: false, message: err.response?.data?.message || 'Error al eliminar usuario.' }
+    }
+  }
+
+  // 👇 NUEVAS FUNCIONES PARA PERMISOS 👇
+  async function getUserPermissions(id) {
+    try {
+      const response = await axios.get(`/api/users/${id}/permissions`)
+      return { success: true, data: response.data }
+    } catch (err) {
+      return { success: false, message: err.response?.data?.message || 'Error al obtener permisos.' }
+    }
+  }
+
+  async function updateUserPermissions(id, permissionsData) {
+    try {
+      const response = await axios.put(`/api/users/${id}/permissions`, permissionsData)
+      return { success: true, message: response.data.message }
+    } catch (err) {
+      return { success: false, message: err.response?.data?.message || 'Error al actualizar permisos.' }
     }
   }
 
@@ -62,5 +80,7 @@ export const useUserStore = defineStore('users', () => {
     createUser,
     updateUser,
     deleteUser,
+    getUserPermissions,
+    updateUserPermissions,
   }
 })

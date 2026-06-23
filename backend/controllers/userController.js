@@ -64,3 +64,22 @@ exports.deleteUser = catchAsync(async (req, res) => {
 
   res.json({ success: true, message: 'Usuario eliminado exitosamente.' })
 })
+
+// GET /api/users/:id/permissions
+exports.getUserPermissions = catchAsync(async (req, res) => {
+  const permissions = await userService.getUserPermissions(req.params.id)
+  res.json(permissions)
+})
+
+// PUT /api/users/:id/permissions
+exports.updateUserPermissions = catchAsync(async (req, res) => {
+  const errors = validationResult(req)
+  if (!errors.isEmpty()) {
+    return res.status(400).json({ success: false, message: errors.array()[0].msg })
+  }
+
+  const { templates, sections } = req.body
+  await userService.updateUserPermissions(req.params.id, templates, sections)
+
+  res.json({ success: true, message: 'Permisos actualizados exitosamente.' })
+})

@@ -4,7 +4,7 @@ const authService = require('../services/authService')
 const { validationResult } = require('express-validator')
 const catchAsync = require('../utils/catchAsync')
 const JWT_SECRET = process.env.JWT_SECRET
-const JWT_EXPIRES_IN = '1h'
+const JWT_EXPIRES_IN = '8h'
 
 exports.register = catchAsync(async (req, res) => {
   const errors = validationResult(req)
@@ -51,7 +51,7 @@ exports.login = catchAsync(async (req, res) => {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
     sameSite: 'lax',
-    maxAge: 60 * 60 * 1000,
+    maxAge: 8 * 60 * 60 * 1000, // 8 HORAS EN MILISEGUNDOS
   })
 
   res.json({ user: { id: user.id, username: user.username, role: user.role } })
