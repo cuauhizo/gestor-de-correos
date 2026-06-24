@@ -11,13 +11,13 @@
 
     <div v-if="emailStore.loading" class="mb-4">
       <ul class="list-group">
-        <li v-for="i in 4" :key="'skel-email-' + i" class="list-group-item d-flex justify-content-between align-items-center py-3">
-          <div class="grow">
+        <li v-for="i in 5" :key="'skel-email-' + i" class="list-group-item d-flex justify-content-between align-items-center py-3">
+          <div class="flex-grow-1">
             <SkeletonLoader width="40%" height="20px" class="mb-2 d-block" />
             <SkeletonLoader width="60%" height="15px" class="mb-1 d-block" />
             <SkeletonLoader width="50%" height="15px" class="d-block" />
           </div>
-          <div class="d-flex flex-column gap-2">
+          <div class="d-flex gap-2">
             <SkeletonLoader width="80px" height="31px" radius="4px" />
             <SkeletonLoader width="80px" height="31px" radius="4px" />
           </div>

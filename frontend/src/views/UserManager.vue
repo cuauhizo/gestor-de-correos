@@ -35,8 +35,21 @@
 
     <div class="card p-4">
       <h2 class="h4 text-center mb-4">Usuarios Existentes</h2>
+      <div v-if="userStore.loading" class="mb-4">
+        <ul class="list-group">
+          <li v-for="i in 5" :key="'skel-user-' + i" class="list-group-item d-flex justify-content-between align-items-center py-3">
+            <div class="d-flex gap-2">
+              <SkeletonLoader width="180px" height="31px" radius="4px" />
+              <SkeletonLoader width="50px" height="15px" radius="4px" />
+            </div>
+            <div class="d-flex gap-2">
+              <SkeletonLoader width="80px" height="31px" radius="4px" />
+              <SkeletonLoader width="80px" height="31px" radius="4px" />
+            </div>
+          </li>
+        </ul>
+      </div>
 
-      <div v-if="userStore.loading" class="text-center text-secondary">Cargando usuarios...</div>
       <div v-else-if="userStore.error" class="text-center text-danger">{{ userStore.error }}</div>
       <div v-else>
         <p v-if="userStore.users.length === 0" class="text-center text-secondary">No hay usuarios registrados aún.</p>
@@ -156,6 +169,7 @@
   import { useAuthStore } from '../stores/auth.js'
   import { useFeedbackStore } from '../stores/feedbackStore.js'
   import { useModalStore } from '../stores/modalStore.js'
+  import SkeletonLoader from '../components/SkeletonLoader.vue'
 
   // --- STORES ---
   const userStore = useUserStore()
