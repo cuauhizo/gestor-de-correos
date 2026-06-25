@@ -66,7 +66,7 @@ exports.updateEmail = catchAsync(async (req, res) => {
   if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() })
 
   const { uuid } = req.params
-  const { updated_content } = req.body
+  const { updated_content, email_name } = req.body
   const user_id = req.user.id
 
   if (!updated_content || !Array.isArray(updated_content.sections)) {
@@ -83,7 +83,7 @@ exports.updateEmail = catchAsync(async (req, res) => {
     }
   }
 
-  await emailService.updateEmailContent(uuid, updated_content, user_id)
+  await emailService.updateEmailContent(uuid, updated_content, email_name, user_id)
   res.json({ message: 'Contenido del correo actualizado exitosamente.' })
 })
 

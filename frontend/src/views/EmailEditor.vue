@@ -121,9 +121,17 @@
           </div>
           <div class="col-md-8">
             <div class="card p-3 h-100">
-              <h3 v-if="editorStore.templateName" class="card-title text-center mb-3">
-                Previsualización del Correo -
-                <span class="fw-bold">{{ editorStore.templateName }}</span>
+              <h3 v-if="editorStore.templateName" class="card-title text-center mb-3 d-flex flex-column align-items-center">
+                <span class="text-muted fs-6 mb-1">Previsualización del Correo (Basado en: {{ editorStore.templateName }})</span>
+                <input
+                  type="text"
+                  v-model="editorStore.emailName"
+                  @input="handleContentChange"
+                  class="form-control form-control-lg text-center fw-bold border-0 shadow-none bg-transparent w-75"
+                  style="font-size: 1.5rem"
+                  placeholder="Escribe el nombre de este correo aquí..."
+                  title="Haz clic para cambiar el nombre con el que se guardará este correo" />
+                <div style="height: 2px; width: 100px; background-color: #0d6efd; margin-top: 5px; opacity: 0.5"></div>
               </h3>
               <div class="mx-auto my-3 btn-group">
                 <button @click="setPreviewWidth('100%')" :class="['btn', previewWidth === '100%' ? 'btn-primary' : 'btn-outline-secondary']">

@@ -34,8 +34,9 @@
       <ul class="list-group" v-else>
         <li v-for="email in filteredEmails" :key="email.uuid" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center transition-hover">
           <div class="grow">
-            <strong class="text-primary fs-5">{{ email.template_name }}</strong>
+            <strong class="text-primary fs-5">{{ email.email_name || email.template_name }}</strong>
             <br />
+
             <small class="text-muted">
               <strong>Creador:</strong>
               {{ email.creator_username || 'Desconocido' }} |
@@ -48,6 +49,10 @@
               {{ formatDate(email.updated_at) }}
             </small>
             <br />
+            <span v-if="email.is_locked" class="badge bg-warning text-dark px-2 py-1 rounded-pill" style="font-size: 0.7rem" :title="`Bloqueado por: ${email.locked_by_username}`">
+              <i-bi-lock-fill class="me-1" />
+              Editando
+            </span>
             <span v-if="email.locked_by" class="badge bg-warning text-dark mt-2">Bloqueado por: {{ email.locked_by_username || 'Usuario desconocido' }}</span>
           </div>
           <div class="d-flex gap-2">
@@ -83,9 +88,12 @@
     const lowerCaseQuery = searchQuery.value.toLowerCase()
     return emailStore.emails.filter(email => {
       const templateName = (email.template_name || '').toLowerCase()
+      const emailName = (email.email_name || '').toLowerCase()
       const creator = (email.creator_username || '').toLowerCase()
       const modifier = (email.last_modifier_username || '').toLowerCase()
-      return templateName.includes(lowerCaseQuery) || creator.includes(lowerCaseQuery) || modifier.includes(lowerCaseQuery)
+
+      // 2. Lo incluimos en la validación de búsqueda
+      return templateName.includes(lowerCaseQuery) || emailName.includes(lowerCaseQuery) || creator.includes(lowerCaseQuery) || modifier.includes(lowerCaseQuery)
     })
   })
 

@@ -5,7 +5,7 @@ const { parseTemplateHTML } = require('../utils/templateParser')
 
 exports.getAllEmails = async () => {
   const [rows] = await pool.query(`
-        SELECT e.uuid, e.is_locked, e.template_id, t.name as template_name, e.created_at, e.updated_at,
+        SELECT e.uuid, e.is_locked, e.template_id, t.name as template_name, e.created_at, e.updated_at, e.name as email_name,
                uc.username AS creator_username, um.username AS last_modifier_username
         FROM emails_editable e
         LEFT JOIN templates t ON e.template_id = t.id
@@ -17,7 +17,7 @@ exports.getAllEmails = async () => {
 }
 
 exports.getEmailByUuid = async uuid => {
-  const [rows] = await pool.execute('SELECT e.template_id, t.name AS template_name, e.content_json, e.is_locked, e.locked_by_user_id FROM emails_editable e JOIN templates t ON e.template_id = t.id WHERE e.uuid = ?', [uuid])
+  const [rows] = await pool.execute('SELECT e.template_id, t.name AS template_name, e.content_json, e.is_locked, e.locked_by_user_id, e.name as email_name FROM emails_editable e JOIN templates t ON e.template_id = t.id WHERE e.uuid = ?', [uuid])
   if (rows.length > 0) {
     rows[0].content_json = JSON.parse(rows[0].content_json)
   }
@@ -72,8 +72,8 @@ exports.createEmail = async (template_id, initial_content, user_id) => {
   }
 }
 
-exports.updateEmailContent = async (uuid, updated_content, user_id) => {
-  const [result] = await pool.execute('UPDATE emails_editable SET content_json = ?, last_modified_by = ?, updated_at = CURRENT_TIMESTAMP WHERE uuid = ?', [JSON.stringify(updated_content), user_id, uuid])
+exports.updateEmailContent = async (uuid, updated_content, email_name, user_id) => {
+  const [result] = await pool.execute('UPDATE emails_editable SET content_json = ?, name = ?, last_modified_by = ?, updated_at = CURRENT_TIMESTAMP WHERE uuid = ?', [JSON.stringify(updated_content), email_name, user_id, uuid])
   return result.affectedRows
 }
 

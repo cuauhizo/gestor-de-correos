@@ -11,6 +11,7 @@ export const useEditorStore = defineStore('editor', () => {
   const loading = ref(true)
   const error = ref(null)
   const templateName = ref('')
+  const emailName = ref('')
   const editableContent = ref({ sections: [] })
   const isLocked = ref(false)
   const isSaving = ref(false)
@@ -43,8 +44,9 @@ export const useEditorStore = defineStore('editor', () => {
 
     try {
       const emailResponse = await axios.get(`/api/emails-editable/${uuid}`)
-      const { template_id, content_json, template_name } = emailResponse.data
+      const { template_id, content_json, template_name, email_name } = emailResponse.data
       templateName.value = template_name
+      emailName.value = email_name || template_name
 
       if (Array.isArray(content_json.sections)) {
         editableContent.value = content_json
@@ -78,7 +80,7 @@ export const useEditorStore = defineStore('editor', () => {
     autoSaveStatus.text = 'Guardando...'
     autoSaveStatus.class = 'bg-info'
     try {
-      await axios.put(`/api/emails-editable/${uuid}`, { updated_content: editableContent.value })
+      await axios.put(`/api/emails-editable/${uuid}`, { updated_content: editableContent.value, email_name: emailName.value })
       hasUnsavedChanges.value = false
       autoSaveStatus.text = 'Cambios guardados'
       autoSaveStatus.class = 'bg-success'
@@ -112,6 +114,7 @@ export const useEditorStore = defineStore('editor', () => {
     loading.value = true
     error.value = null
     templateName.value = ''
+    emailName.value = ''
     editableContent.value = { sections: [] }
     isLocked.value = false
     isSaving.value = false
@@ -194,6 +197,7 @@ export const useEditorStore = defineStore('editor', () => {
     error,
     editableContent,
     templateName,
+    emailName,
     isLocked,
     isSaving,
     hasUnsavedChanges,
