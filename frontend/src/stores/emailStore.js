@@ -30,11 +30,12 @@ export const useEmailStore = defineStore('emails', () => {
     }
   }
 
-  async function createEmail(template_id, initial_content) {
+  async function createEmail(template_id, initial_content, email_name = null) {
     try {
       const response = await axios.post('/api/emails-editable', {
         template_id: template_id,
         initial_content: initial_content,
+        email_name: email_name,
       })
       // Devolvemos el UUID del nuevo correo para poder construir la URL
       return { success: true, uuid: response.data.uuid }

@@ -47,7 +47,7 @@ exports.createEmail = catchAsync(async (req, res) => {
   const errors = validationResult(req)
   if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() })
 
-  const { template_id, initial_content } = req.body
+  const { template_id, initial_content, email_name } = req.body
   const user_id = req.user.id
 
   for (const key in initial_content) {
@@ -56,7 +56,7 @@ exports.createEmail = catchAsync(async (req, res) => {
     else validateRichContent(value)
   }
 
-  const uuid = await emailService.createEmail(template_id, initial_content, user_id)
+  const uuid = await emailService.createEmail(template_id, initial_content, user_id, email_name)
   res.status(201).json({ uuid, message: 'Correo editable creado y bloqueado exitosamente.' })
 })
 

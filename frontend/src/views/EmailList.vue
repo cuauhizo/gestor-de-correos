@@ -34,7 +34,7 @@
       <ul class="list-group" v-else>
         <li v-for="email in filteredEmails" :key="email.uuid" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center transition-hover">
           <div class="grow">
-            <strong class="text-primary fs-5">{{ email.email_name || email.template_name }}</strong>
+            <strong class="text-primary fs-5">{{ email.email_name || email.template_name || 'Correo sin título' }}</strong>
             <br />
 
             <small class="text-muted">

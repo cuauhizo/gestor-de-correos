@@ -1,5 +1,5 @@
 <template>
-  <div class="container-fluid py-4">
+  <div class="container-fluid">
     <div class="row">
       <div class="col-12 mb-3">
         <button @click="handleCancel" class="text-decoration-none text-secondary btn btn-link">
@@ -8,7 +8,7 @@
         </button>
       </div>
 
-      <div class="col-12 text-center mb-4">
+      <div class="col-12 text-center mb-3">
         <h1>Editor de Contenido de Correo</h1>
       </div>
       <div class="col-12">

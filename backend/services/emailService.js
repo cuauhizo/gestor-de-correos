@@ -24,7 +24,7 @@ exports.getEmailByUuid = async uuid => {
   return rows[0]
 }
 
-exports.createEmail = async (template_id, initial_content, user_id) => {
+exports.createEmail = async (template_id, initial_content, user_id, email_name = null) => {
   const uuid = uuidv4()
   const connection = await pool.getConnection()
 
@@ -59,7 +59,7 @@ exports.createEmail = async (template_id, initial_content, user_id) => {
     const finalContentObject = { sections }
 
     // Guardamos en la base de datos (template_id se guardará como NULL si no existe)
-    await connection.execute('INSERT INTO emails_editable (uuid, template_id, content_json, user_id) VALUES (?, ?, ?, ?)', [uuid, template_id || null, JSON.stringify(finalContentObject), user_id])
+    await connection.execute('INSERT INTO emails_editable (uuid, template_id, content_json, user_id, name) VALUES (?, ?, ?, ?, ?)', [uuid, template_id || null, JSON.stringify(finalContentObject), user_id, email_name])
 
     await connection.commit()
     return uuid

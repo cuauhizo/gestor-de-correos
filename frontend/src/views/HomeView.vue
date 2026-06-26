@@ -40,6 +40,11 @@
         <div v-if="selectedTemplateId === 'blank'" class="text-center py-3">
           <h4 class="fw-bold mb-3">¿Confirmas crear un lienzo en blanco?</h4>
           <p class="text-muted mb-4 mx-auto" style="max-width: 500px">Entrarás directamente al editor sin secciones preestablecidas. Podrás arrastrar y construir tu correo de forma modular desde la biblioteca.</p>
+
+          <div class="mb-4 mx-auto" style="max-width: 350px">
+            <input type="text" class="form-control form-control-lg text-center" v-model="blankEmailName" placeholder="Asigna un nombre (opcional)..." @keyup.enter="createBlankEmail" />
+          </div>
+
           <button @click="createBlankEmail" :disabled="isCreatingEmail" class="btn btn-primary btn-lg rounded-pill px-5 shadow-sm">
             <span v-if="isCreatingEmail" class="spinner-border spinner-border-sm me-2"></span>
             Crear Correo en Blanco
@@ -125,6 +130,7 @@
   const initialContentErrors = ref({})
   const isCreatingEmail = ref(false)
   const creationError = ref(null)
+  const blankEmailName = ref('')
 
   const getTemplateName = id => templateStore.templates.find(t => t.id === id)?.name || '...'
   const formatLabel = key => capitalizeFirstLetter(key.replace(/_/g, ' '))
@@ -192,7 +198,8 @@
     creationError.value = null
     try {
       // Mandamos un template_id nulo y contenido inicial vacío
-      const result = await emailStore.createEmail(null, {}, null)
+      const finalName = blankEmailName.value.trim() || 'Lienzo en Blanco'
+      const result = await emailStore.createEmail(null, {}, finalName)
       if (result.success) {
         router.push({ name: 'email-editor', params: { uuid: result.uuid } })
       } else {
