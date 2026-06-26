@@ -1,153 +1,243 @@
 <template>
-  <div class="card p-4 mt-5 mx-auto" style="max-width: 900px">
-    <h1 class="card-title text-center mb-4">Bienvenido al Creador de Correos</h1>
+  <div class="container py-4" style="max-width: 1000px">
+    <h1 class="card-title text-center mb-1 fw-bold">Crear Nuevo Correo</h1>
+    <p class="text-center text-muted mb-5">Selecciona una plantilla o empieza desde una hoja en blanco.</p>
 
-    <div v-if="templateStore.loading" class="mb-4">
-      <SkeletonLoader width="30%" height="20px" class="mb-2 d-block" />
-      <SkeletonLoader width="100%" height="38px" radius="6px" class="mb-4 d-block" />
-
-      <div class="p-4 border rounded bg-light mb-4">
-        <SkeletonLoader width="60%" height="24px" class="mb-4 d-block border-bottom pb-2" />
-
-        <SkeletonLoader width="25%" height="20px" class="mb-2 d-block" />
-        <SkeletonLoader width="100%" height="38px" radius="6px" class="mb-3 d-block" />
-
-        <SkeletonLoader width="35%" height="20px" class="mb-2 d-block" />
-        <SkeletonLoader width="100%" height="90px" radius="6px" class="mb-3 d-block" />
+    <div v-if="templateStore.loading" class="row g-4">
+      <div class="col-md-4" v-for="i in 3" :key="'skel-' + i">
+        <SkeletonLoader width="100%" height="160px" radius="12px" />
       </div>
-
-      <SkeletonLoader width="220px" height="38px" radius="6px" />
     </div>
 
-    <div v-else-if="templateStore.error" class="text-center text-danger">{{ templateStore.error }}</div>
+    <div v-else-if="templateStore.error" class="alert alert-danger text-center shadow-sm border-0">
+      {{ templateStore.error }}
+    </div>
 
     <div v-else>
-      <div v-if="templateStore.templates.length > 0" class="mb-4">
-        <label for="selectTemplate" class="form-label d-block">Selecciona un Template:</label>
-        <select id="selectTemplate" class="form-select" v-model="selectedTemplateId" @change="fetchSelectedTemplateDetails">
-          <option value="" disabled>-- Selecciona un template --</option>
-          <option v-for="template in templateStore.templates" :key="template.id" :value="template.id">{{ template.name }} (ID: {{ template.id }})</option>
-        </select>
-      </div>
-      <p v-else-if="!templateStore.loading" class="text-secondary">
-        No hay templates disponibles. Por favor,
-        <router-link to="/gestionar-templates">añade un template primero</router-link>
-        .
-      </p>
+      <div class="row g-4 mb-5">
+        <div class="col-md-4">
+          <div @click="selectTemplate('blank')" :class="['card h-100 shadow-sm border-2 text-center p-4 template-card', selectedTemplateId === 'blank' ? 'border-primary bg-white' : 'border-dashed bg-light']">
+            <div class="card-body d-flex flex-column justify-content-center align-items-center">
+              <i-bi-file-earmark-plus class="text-secondary mb-3" style="font-size: 3rem" />
+              <h5 class="fw-bold text-dark mb-1">Desde Cero</h5>
+              <p class="text-muted small mb-0">Lienzo completamente vacío sin estructura inicial.</p>
+            </div>
+          </div>
+        </div>
 
-      <div v-if="selectedTemplateId && Object.keys(initialContent).length > 0" class="p-4 border rounded bg-light mb-4 text-start">
-        <h2 class="h5 border-bottom pb-2 mb-3">Contenido Inicial para {{ getTemplateName(selectedTemplateId) }}</h2>
-
-        <div v-for="(value, key) in initialContent" :key="key" class="mb-3">
-          <template v-if="!key.startsWith('image_')">
-            <label :for="`initial-${key}`" class="form-label">{{ formatLabel(key) }}:</label>
-
-            <template v-if="key.includes('_enlace')">
-              <input type="url" :id="`initial-${key}`" v-model="initialContent[key]" placeholder="Introduce URL" :class="['form-control', { 'is-invalid': initialContentErrors[key] }]" />
-            </template>
-            <template v-else>
-              <div v-if="key.toLowerCase().includes('titulo')">
-                <textarea :id="`initial-${key}`" v-model="initialContent[key]" placeholder="Introduce texto o HTML" :class="['form-control', { 'is-invalid': initialContentErrors[key] }]" rows="1"></textarea>
-              </div>
-              <div v-else>
-                <textarea :id="`initial-${key}`" v-model="initialContent[key]" placeholder="Introduce texto o HTML" :class="['form-control', { 'is-invalid': initialContentErrors[key] }]" rows="4"></textarea>
-              </div>
-            </template>
-            <p v-if="initialContentErrors[key]" class="invalid-feedback d-block">{{ initialContentErrors[key] }}</p>
-          </template>
+        <div class="col-md-4" v-for="template in templateStore.templates" :key="template.id">
+          <div @click="selectTemplate(template.id)" :class="['card h-100 shadow-sm border-2 text-center p-4 template-card bg-white', selectedTemplateId === template.id ? 'border-primary' : 'border-transparent']">
+            <div class="card-body d-flex flex-column justify-content-center align-items-center">
+              <i-bi-layout-text-window class="text-primary mb-3" style="font-size: 3rem" />
+              <h5 class="fw-bold text-dark mb-1">{{ template.name }}</h5>
+              <!-- <p class="text-muted small mb-0">ID de Plantilla: {{ template.id }}</p> -->
+            </div>
+          </div>
         </div>
       </div>
 
-      <button @click="createNewEmail" :disabled="!selectedTemplateId || isCreatingEmail" class="btn btn-primary">
-        {{ isCreatingEmail ? 'Creando...' : 'Crear Nuevo Correo Editable' }}
-      </button>
-      <p v-if="creationError" class="text-danger mt-3">{{ creationError }}</p>
+      <div v-if="selectedTemplateId" ref="configSection" class="card border-0 shadow-sm p-4 bg-white rounded-3 mb-4 border-top border-primary border-3">
+        <div v-if="selectedTemplateId === 'blank'" class="text-center py-3">
+          <h4 class="fw-bold mb-3">¿Confirmas crear un lienzo en blanco?</h4>
+          <p class="text-muted mb-4 mx-auto" style="max-width: 500px">Entrarás directamente al editor sin secciones preestablecidas. Podrás arrastrar y construir tu correo de forma modular desde la biblioteca.</p>
+          <button @click="createBlankEmail" :disabled="isCreatingEmail" class="btn btn-primary btn-lg rounded-pill px-5 shadow-sm">
+            <span v-if="isCreatingEmail" class="spinner-border spinner-border-sm me-2"></span>
+            Crear Correo en Blanco
+          </button>
+        </div>
+
+        <div v-else>
+          <h4 class="fw-bold mb-4 border-bottom pb-2">Configuración de Plantilla: {{ getTemplateName(selectedTemplateId) }}</h4>
+
+          <div class="mb-4 d-flex justify-content-center">
+            <div class="btn-group p-1 bg-light rounded-pill border" role="group">
+              <input type="radio" class="btn-check" name="creationMode" id="modeFast" value="fast" v-model="creationMode" />
+              <label class="btn btn-sm rounded-pill px-4" for="modeFast">🪄 Creación Rápida</label>
+
+              <input type="radio" class="btn-check" name="creationMode" id="modeCustom" value="custom" v-model="creationMode" />
+              <label class="btn btn-sm rounded-pill px-4" for="modeCustom">📝 Formulario Inicial</label>
+            </div>
+          </div>
+
+          <div v-if="creationMode === 'fast'" class="text-center py-3">
+            <p class="text-muted mb-4 mx-auto" style="max-width: 500px">Se generará el correo instantáneamente inyectando textos de relleno editables (Lorem Ipsum) en los campos requeridos.</p>
+            <button @click="createEmailWithMockData" :disabled="isCreatingEmail" class="btn btn-primary btn-lg rounded-pill px-5 shadow-sm">
+              <span v-if="isCreatingEmail" class="spinner-border spinner-border-sm me-2"></span>
+              Ir directo al Editor Visual
+            </button>
+          </div>
+
+          <div v-if="creationMode === 'custom' && Object.keys(initialContent).length > 0" class="mt-2">
+            <p class="text-muted small mb-4">Introduce los datos con los que deseas que inicialice el lienzo:</p>
+
+            <div class="row">
+              <div v-for="(value, key) in initialContent" :key="key" class="col-md-6 mb-3">
+                <template v-if="!key.startsWith('image_')">
+                  <label :for="`initial-${key}`" class="form-label fw-bold text-secondary small">{{ formatLabel(key) }}:</label>
+
+                  <template v-if="key.includes('_enlace')">
+                    <input type="url" :id="`initial-${key}`" v-model="initialContent[key]" placeholder="https://ejemplo.com" :class="['form-control', { 'is-invalid': initialContentErrors[key] }]" />
+                  </template>
+                  <template v-else>
+                    <textarea
+                      :id="`initial-${key}`"
+                      v-model="initialContent[key]"
+                      placeholder="Escribe el contenido de esta sección..."
+                      :class="['form-control', { 'is-invalid': initialContentErrors[key] }]"
+                      :rows="key.toLowerCase().includes('titulo') ? 1 : 3"></textarea>
+                  </template>
+                  <div v-if="initialContentErrors[key]" class="invalid-feedback d-block">{{ initialContentErrors[key] }}</div>
+                </template>
+              </div>
+            </div>
+
+            <div class="text-center mt-4">
+              <button @click="createEmailWithCustomData" :disabled="isCreatingEmail" class="btn btn-success btn-lg rounded-pill px-5 shadow-sm">
+                <span v-if="isCreatingEmail" class="spinner-border spinner-border-sm me-2"></span>
+                Inicializar y Editar Correo
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div v-if="creationError" class="alert alert-danger mt-4 text-center border-0 rounded shadow-sm">{{ creationError }}</div>
+      </div>
     </div>
   </div>
 </template>
 
 <script setup>
-  import { ref, onMounted, watch } from 'vue'
+  import { ref, onMounted, nextTick } from 'vue'
   import { useRouter } from 'vue-router'
   import { useTemplateStore } from '../stores/templateStore.js'
   import { useEmailStore } from '../stores/emailStore.js'
   import { capitalizeFirstLetter, isValidUrl, getPlainTextFromHtml } from '../utils/helpers.js'
-  import SkeletonLoader from '../components/SkeletonLoader.vue' // <-- IMPORTACIÓN DEL SKELETON
+  import SkeletonLoader from '../components/SkeletonLoader.vue'
 
-  // --- Instancias de Stores ---
   const router = useRouter()
   const templateStore = useTemplateStore()
   const emailStore = useEmailStore()
 
-  // --- Estado Local del Componente ---
   const selectedTemplateId = ref('')
+  const configSection = ref(null)
+  const creationMode = ref('fast') // 'fast' o 'custom'
   const initialContent = ref({})
   const initialContentErrors = ref({})
   const isCreatingEmail = ref(false)
   const creationError = ref(null)
 
-  // --- Funciones Auxiliares ---
   const getTemplateName = id => templateStore.templates.find(t => t.id === id)?.name || '...'
   const formatLabel = key => capitalizeFirstLetter(key.replace(/_/g, ' '))
 
-  // --- Lógica del Componente ---
-  const fetchSelectedTemplateDetails = async () => {
-    if (!selectedTemplateId.value) return
+  const selectTemplate = async id => {
+    selectedTemplateId.value = id
+    creationError.value = null
+    initialContentErrors.value = {}
+
+    if (id !== 'blank') {
+      await fetchTemplatePlaceholders(id)
+    }
+
+    // Esperamos a que Vue termine de renderizar el nuevo bloque HTML en el DOM
+    nextTick(() => {
+      if (configSection.value) {
+        // Hacemos el scroll suave automático hacia la parte superior de la sección
+        configSection.value.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      }
+    })
+  }
+
+  // Analiza y extrae placeholders para el formulario manual
+  const fetchTemplatePlaceholders = async templateId => {
     initialContent.value = {}
     try {
-      const LOREM_IPSUM_TITLE = 'Lorem Ipsum Dolor Sit Amet'
-      const LOREM_IPSUM_PARAGRAPH = 'Lorem ipsum dolor sit amet, consectetur adipiscing elit.'
-      const PLACEHOLDER_URL = 'https://www.ejemplo.com/destino'
-
-      const html_content = await templateStore.getTemplateContent(selectedTemplateId.value)
+      const html_content = await templateStore.getTemplateContent(templateId)
       const newContent = {}
 
-      // Busca atributos como data-editor-attribute="href"
       const attributeRegex = /data-editor-attribute="([^"]+)"\s*[^>]*?\s*([a-zA-Z0-9_]+)="{{\s*([a-zA-Z0-9_]+)\s*}}"/g
       let attributeMatch
       while ((attributeMatch = attributeRegex.exec(html_content)) !== null) {
-        const placeholderKey = attributeMatch[3]
-        newContent[placeholderKey] = PLACEHOLDER_URL
+        newContent[attributeMatch[3]] = 'https://www.ejemplo.com'
       }
 
-      // Extraer placeholders de texto como {{variable}} (esta lógica sigue siendo válida para contenido de texto)
       const textRegex = /{{\s*([a-zA-Z0-9_]+)\s*}}/g
       let textMatch
       while ((textMatch = textRegex.exec(html_content)) !== null) {
         const key = textMatch[1]
-        // Evitamos rellenar si ya lo hemos hecho con el attributeRegex
         if (newContent[key] === undefined) {
           if (key.toLowerCase().includes('enlace') || key.toLowerCase().endsWith('_url')) {
-            newContent[key] = PLACEHOLDER_URL
+            newContent[key] = 'https://www.ejemplo.com'
           } else if (key.toLowerCase().includes('titulo')) {
-            newContent[key] = `${LOREM_IPSUM_TITLE}`
+            newContent[key] = 'Lorem Ipsum Dolor'
           } else {
-            newContent[key] = `${LOREM_IPSUM_PARAGRAPH}`
+            newContent[key] = 'Lorem ipsum dolor sit amet, consectetur adipiscing elit.'
           }
         }
       }
 
-      // Extraer URLs de imágenes (esta parte no cambia, pero asegúrate del data-editor-key)
-      // Asegúrate de que tus imágenes tengan data-editor-key="image_N" para ser editables
       const imgRegex = /<img[^>]+data-editor-key="([^"]+)"[^>]+src="([^"]+)"/g
       let imgMatch
       while ((imgMatch = imgRegex.exec(html_content)) !== null) {
-        const key = imgMatch[1]
-        newContent[key] = imgMatch[2]
+        newContent[imgMatch[1]] = imgMatch[2]
       }
       initialContent.value = newContent
     } catch (err) {
-      console.error('Error al cargar los detalles del template:', err)
       creationError.value = 'Error al cargar los detalles del template.'
     }
   }
 
-  const createNewEmail = async () => {
+  // FLUJO 1: Crear Correo Totalmente en Blanco (Desde Cero)
+  const createBlankEmail = async () => {
+    isCreatingEmail.value = true
+    creationError.value = null
+    try {
+      // Mandamos un template_id nulo y contenido inicial vacío
+      const result = await emailStore.createEmail(null, {}, null)
+      if (result.success) {
+        router.push({ name: 'email-editor', params: { uuid: result.uuid } })
+      } else {
+        creationError.value = result.message
+      }
+    } catch (err) {
+      creationError.value = 'Error al crear el correo en blanco. Verifica la base de datos.'
+    } finally {
+      isCreatingEmail.value = false
+    }
+  }
+
+  // FLUJO 2: Creación Express (One-Click) usando Mock Data
+  const createEmailWithMockData = async () => {
+    isCreatingEmail.value = true
+    creationError.value = null
+
+    // Rellenamos el contenido automáticamente con Lorem Ipsum estructurado
+    const formattedContent = {}
+    for (const key in initialContent.value) {
+      if (key.toLowerCase().includes('enlace') || key.toLowerCase().endsWith('_url')) {
+        formattedContent[key] = 'https://www.ejemplo.com'
+      } else if (key.toLowerCase().includes('titulo')) {
+        formattedContent[key] = 'Lorem Ipsum Dolor Sit Amet'
+      } else if (key.startsWith('image_')) {
+        formattedContent[key] = initialContent.value[key]
+      } else {
+        formattedContent[key] = '<p>Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore.</p>'
+      }
+    }
+
+    const result = await emailStore.createEmail(selectedTemplateId.value, formattedContent)
+    if (result.success) {
+      router.push({ name: 'email-editor', params: { uuid: result.uuid } })
+    } else {
+      creationError.value = result.message
+    }
+    isCreatingEmail.value = false
+  }
+
+  // FLUJO 3: Creación Tradicional con Formulario Manual
+  const createEmailWithCustomData = async () => {
     creationError.value = null
     initialContentErrors.value = {}
-    if (!selectedTemplateId.value) return
 
-    // Validaciones (se mantienen en el componente, ya que son específicas de este formulario)
     let hasErrors = false
     for (const key in initialContent.value) {
       const value = initialContent.value[key] || ''
@@ -163,32 +253,50 @@
         }
       }
     }
+
     if (hasErrors) {
-      creationError.value = 'Por favor, corrige los errores.'
+      creationError.value = 'Por favor, corrige los errores del formulario.'
       return
     }
 
     isCreatingEmail.value = true
     const result = await emailStore.createEmail(selectedTemplateId.value, initialContent.value)
     if (result.success) {
-      router.push({
-        name: 'email-editor',
-        params: { uuid: result.uuid },
-      })
+      router.push({ name: 'email-editor', params: { uuid: result.uuid } })
     } else {
       creationError.value = result.message
     }
     isCreatingEmail.value = false
   }
 
-  // --- Watchers y Ciclo de Vida ---
-  watch(selectedTemplateId, fetchSelectedTemplateDetails)
-
-  onMounted(async () => {
-    await templateStore.fetchTemplates()
-    // Si hay templates, seleccionamos el primero por defecto
-    if (templateStore.templates.length > 0) {
-      selectedTemplateId.value = templateStore.templates[0].id
-    }
+  onMounted(() => {
+    templateStore.fetchTemplates()
   })
 </script>
+
+<style scoped>
+  .template-card {
+    cursor: pointer;
+    transition:
+      transform 0.25s ease,
+      border-color 0.25s ease,
+      box-shadow 0.25s ease;
+  }
+  .template-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.08) !important;
+  }
+  .border-dashed {
+    border-style: dashed !important;
+  }
+  .btn-check:checked + .btn {
+    background-color: #0d6efd !important;
+    color: white !important;
+    font-weight: bold;
+  }
+  .btn-group .btn {
+    border: none;
+    background: transparent;
+    color: #6c757d;
+  }
+</style>

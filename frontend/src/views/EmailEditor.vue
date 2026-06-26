@@ -2,10 +2,10 @@
   <div class="container-fluid py-4">
     <div class="row">
       <div class="col-12 mb-3">
-        <router-link to="/lista-correos" class="text-decoration-none text-secondary">
+        <button @click="handleCancel" class="text-decoration-none text-secondary btn btn-link">
           <i-bi-arrow-left />
           Volver a correos guardados
-        </router-link>
+        </button>
       </div>
 
       <div class="col-12 text-center mb-4">
@@ -108,7 +108,7 @@
                   <button @click="manualSaveChanges" :disabled="editorStore.isSaving" class="btn btn-sm btn-primary px-4">
                     {{ editorStore.isSaving ? 'Guardando...' : 'Guardar' }}
                   </button>
-                  <button @click="sendTestEmail" :disabled="isSendingTest" class="btn btn-sm btn-info text-white">
+                  <button @click="openTestEmailModal" :disabled="isSendingTest" class="btn btn-sm btn-info text-white">
                     {{ isSendingTest ? 'Enviando...' : 'Enviar Prueba' }}
                   </button>
                 </div>
@@ -121,8 +121,13 @@
           </div>
           <div class="col-md-8">
             <div class="card p-3 h-100">
-              <h3 v-if="editorStore.templateName" class="card-title text-center mb-3 d-flex flex-column align-items-center">
-                <span class="text-muted fs-6 mb-1">Previsualización del Correo (Basado en: {{ editorStore.templateName }})</span>
+              <h3 class="card-title text-center mb-3 d-flex flex-column align-items-center">
+                <span class="text-muted fs-6 mb-1">
+                  Previsualización del Correo
+                  <span v-if="editorStore.templateName">(Basado en: {{ editorStore.templateName }})</span>
+                  <span v-else>(Lienzo en Blanco)</span>
+                </span>
+
                 <input
                   type="text"
                   v-model="editorStore.emailName"
@@ -133,7 +138,7 @@
                   title="Haz clic para cambiar el nombre con el que se guardará este correo" />
                 <div style="height: 2px; width: 100px; background-color: #0d6efd; margin-top: 5px; opacity: 0.5"></div>
               </h3>
-              <div class="mx-auto my-3 btn-group">
+              <div class="mx-auto mb-2 btn-group">
                 <button @click="setPreviewWidth('100%')" :class="['btn', previewWidth === '100%' ? 'btn-primary' : 'btn-outline-secondary']">
                   <span>
                     <i-entypo:tv />
@@ -184,6 +189,35 @@
       </div>
     </div>
   </teleport>
+  <teleport to="body">
+    <div v-if="showTestEmailModal" class="modal fade show d-block" tabindex="-1" style="background: rgba(0, 0, 0, 0.5); z-index: 1055">
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content shadow-lg border-0">
+          <div class="modal-header bg-light">
+            <h5 class="modal-title fw-bold">
+              <i-bi-envelope-paper class="text-info me-2" />
+              Enviar Correo de Prueba
+            </h5>
+            <button type="button" class="btn-close" @click="closeTestEmailModal" :disabled="isSendingTest"></button>
+          </div>
+          <div class="modal-body p-4">
+            <div class="mb-2">
+              <label class="form-label fw-bold">Destinatarios:</label>
+              <input type="text" class="form-control form-control-lg" v-model="testEmailInput" placeholder="ejemplo@correo.com, otro@correo.com" @keyup.enter="confirmSendTestEmail" :disabled="isSendingTest" autofocus />
+              <div class="form-text mt-2 text-muted">Puedes enviar a múltiples personas separando los correos por comas.</div>
+            </div>
+          </div>
+          <div class="modal-footer bg-light">
+            <button type="button" class="btn btn-secondary" @click="closeTestEmailModal" :disabled="isSendingTest">Cancelar</button>
+            <button type="button" class="btn btn-info text-white px-4" @click="confirmSendTestEmail" :disabled="isSendingTest || !testEmailInput">
+              <span v-if="isSendingTest" class="spinner-border spinner-border-sm me-2"></span>
+              {{ isSendingTest ? 'Enviando...' : 'Enviar Prueba' }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </teleport>
 </template>
 
 <script setup>
@@ -203,6 +237,7 @@
   // --- Instancias ---
   const route = useRoute()
   const router = useRouter()
+  const props = defineProps(['uuid'])
   const editorStore = useEditorStore()
   const authStore = useAuthStore()
   const feedbackStore = useFeedbackStore()
@@ -214,6 +249,8 @@
   const showImageModal = ref(false)
   const tempImageUrl = ref('')
   const activeImageContext = ref(null)
+  const showTestEmailModal = ref(false)
+  const testEmailInput = ref('')
 
   const openImageModal = (sectionId, contentKey, currentUrl) => {
     activeImageContext.value = { sectionId, contentKey }
@@ -244,13 +281,21 @@
 
   // --- Lógica del Componente ---
 
-  const sendTestEmail = async () => {
-    // 1. Actualizamos el mensaje para indicar que acepta comas
-    const emailsInput = prompt('Introduce el(los) correo(s) para recibir la prueba (separados por comas):')
-    if (!emailsInput) return
+  const openTestEmailModal = () => {
+    testEmailInput.value = '' // Limpiar el input anterior
+    showTestEmailModal.value = true
+  }
+
+  const closeTestEmailModal = () => {
+    if (isSendingTest.value) return // Evitar que lo cierren si está cargando
+    showTestEmailModal.value = false
+  }
+
+  const confirmSendTestEmail = async () => {
+    if (!testEmailInput.value) return
 
     // 2. Separamos el texto por comas, quitamos espacios en blanco y eliminamos vacíos
-    const emailsArray = emailsInput
+    const emailsArray = testEmailInput.value
       .split(',')
       .map(email => email.trim())
       .filter(email => email.length > 0)
@@ -270,7 +315,7 @@
       return
     }
 
-    // 4. Volvemos a unir los correos válidos con una coma (como lo requiere Nodemailer)
+    // 4. Volvemos a unir los correos válidos con una coma
     const validEmailsString = emailsArray.join(',')
 
     isSendingTest.value = true
@@ -279,11 +324,12 @@
 
       await api.post(`/api/emails-editable/${uuid}/send-test`, {
         to: validEmailsString,
-        subject: `[Prueba] ${editorStore.templateName || 'Gestor de Correos'}`,
+        subject: `[Prueba] ${editorStore.emailName || editorStore.templateName || 'Gestor de Correos'}`,
         html: htmlContent,
       })
 
       feedbackStore.show('¡Correo(s) de prueba enviado(s) exitosamente!', 'success')
+      closeTestEmailModal() // Cerrar el modal al terminar con éxito
     } catch (error) {
       console.error('Error al enviar la prueba:', error)
       feedbackStore.show(error.response?.data?.message || 'Hubo un error al enviar el correo de prueba.', 'error')
@@ -329,11 +375,6 @@
             const section = editorStore.editableContent.sections.find(s => s.id === sectionId)
             if (section) {
               const currentUrl = section.content[contentKey] || ''
-              // const newUrl = prompt('Introduce la nueva URL de la imagen:', currentUrl)
-              // if (newUrl !== null && newUrl !== currentUrl) {
-              //   // Llamamos a la acción del store para asegurar reactividad
-              //   editorStore.updateSectionContent(sectionId, contentKey, newUrl)
-              // }
               openImageModal(sectionId, contentKey, currentUrl)
             }
           } else if (target.tagName !== 'IMG' && event.type === 'dblclick') {

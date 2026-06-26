@@ -12,7 +12,7 @@
             <h2>Acciones Rápidas</h2>
             <p>Crea un nuevo correo desde una plantilla o revisa la lista de correos existentes.</p>
             <div class="d-flex flex-wrap gap-4 mt-3">
-              <router-link to="/crear-correo" class="btn btn-primary btn-lg" v-if="authStore.isAdmin">
+              <router-link to="/crear-correo" class="btn btn-primary btn-lg">
                 <i-bi-plus-circle-fill class="me-2" />
                 Nuevo Correo
               </router-link>
@@ -79,7 +79,7 @@
         <ul class="list-group" v-else>
           <li v-for="email in dashboardStore.recentEmails" :key="email.uuid" class="list-group-item d-flex justify-content-between align-items-center">
             <div>
-              <strong>{{ email.template_name }}</strong>
+              <strong>{{ email.email_name || email.template_name }}</strong>
               <br />
               <small class="text-muted">Última modificación: {{ formatDate(email.updated_at) }} por {{ email.last_modifier_username || 'desconocido' }}</small>
             </div>

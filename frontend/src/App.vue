@@ -92,7 +92,7 @@
         <div class="collapse navbar-collapse" id="navbarNav">
           <ul class="navbar-nav">
             <template v-if="authStore.isAuthenticated">
-              <li class="nav-item" v-if="authStore.isAdmin">
+              <li class="nav-item">
                 <router-link to="/crear-correo" class="nav-link" active-class="active">Crear Nuevo Correo</router-link>
               </li>
               <li class="nav-item">

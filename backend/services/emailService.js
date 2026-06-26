@@ -17,7 +17,7 @@ exports.getAllEmails = async () => {
 }
 
 exports.getEmailByUuid = async uuid => {
-  const [rows] = await pool.execute('SELECT e.template_id, t.name AS template_name, e.content_json, e.is_locked, e.locked_by_user_id, e.name as email_name FROM emails_editable e JOIN templates t ON e.template_id = t.id WHERE e.uuid = ?', [uuid])
+  const [rows] = await pool.execute('SELECT e.template_id, t.name AS template_name, e.content_json, e.is_locked, e.locked_by_user_id, e.name as email_name FROM emails_editable e LEFT JOIN templates t ON e.template_id = t.id WHERE e.uuid = ?', [uuid])
   if (rows.length > 0) {
     rows[0].content_json = JSON.parse(rows[0].content_json)
   }
@@ -26,48 +26,47 @@ exports.getEmailByUuid = async uuid => {
 
 exports.createEmail = async (template_id, initial_content, user_id) => {
   const uuid = uuidv4()
-
-  // 1. Obtenemos una conexión dedicada del pool para la transacción
   const connection = await pool.getConnection()
 
   try {
-    // 2. Iniciamos la transacción
     await connection.beginTransaction()
 
-    const [templateRows] = await connection.execute('SELECT html_content FROM templates WHERE id = ?', [template_id])
-    if (templateRows.length === 0) {
-      throw new Error('Template no encontrado')
-    }
-    const templateHtml = templateRows[0].html_content
-    const sections = parseTemplateHTML(templateHtml)
+    let sections = [] // Empezamos asumiendo que es un lienzo en blanco
 
-    // Rellenamos con el contenido inicial, respetando las imágenes
-    if (initial_content) {
-      sections.forEach(section => {
-        for (const key in section.content) {
-          if (initial_content[key] && !key.startsWith('image_')) {
-            section.content[key] = initial_content[key]
-          } else if (key.startsWith('image_') && !section.content[key] && initial_content[key]) {
-            section.content[key] = initial_content[key]
+    // Si viene un template_id, cargamos su estructura y la rellenamos
+    if (template_id) {
+      const [templateRows] = await connection.execute('SELECT html_content FROM templates WHERE id = ?', [template_id])
+      if (templateRows.length === 0) {
+        throw new Error('Template no encontrado')
+      }
+      const templateHtml = templateRows[0].html_content
+      sections = parseTemplateHTML(templateHtml)
+
+      // Rellenamos con el contenido inicial, respetando las imágenes
+      if (initial_content) {
+        sections.forEach(section => {
+          for (const key in section.content) {
+            if (initial_content[key] && !key.startsWith('image_')) {
+              section.content[key] = initial_content[key]
+            } else if (key.startsWith('image_') && !section.content[key] && initial_content[key]) {
+              section.content[key] = initial_content[key]
+            }
           }
-        }
-      })
+        })
+      }
     }
 
     const finalContentObject = { sections }
 
-    // Usamos 'connection' en lugar de 'pool' para asegurar que estamos en la misma transacción
-    await connection.execute('INSERT INTO emails_editable (uuid, template_id, content_json, user_id) VALUES (?, ?, ?, ?)', [uuid, template_id, JSON.stringify(finalContentObject), user_id])
+    // Guardamos en la base de datos (template_id se guardará como NULL si no existe)
+    await connection.execute('INSERT INTO emails_editable (uuid, template_id, content_json, user_id) VALUES (?, ?, ?, ?)', [uuid, template_id || null, JSON.stringify(finalContentObject), user_id])
 
-    // 3. Si todo salió bien, confirmamos los cambios
     await connection.commit()
     return uuid
   } catch (error) {
-    // 4. Si algo falló, revertimos todos los cambios
     await connection.rollback()
-    throw error // Relanzamos el error para que el controlador lo atrape (catchAsync)
+    throw error
   } finally {
-    // 5. Siempre liberamos la conexión de vuelta al pool
     connection.release()
   }
 }

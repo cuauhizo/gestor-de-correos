@@ -33,7 +33,7 @@ const router = createRouter({
       path: '/crear-correo', // La antigua página de inicio ahora vive aquí
       name: 'create-email',
       component: CreateEmailView,
-      meta: { requiresAuth: true, requiresAdmin: true },
+      meta: { requiresAuth: true },
     },
     {
       path: '/editar-correo/:uuid',

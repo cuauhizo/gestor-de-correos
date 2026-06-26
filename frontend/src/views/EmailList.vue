@@ -2,7 +2,7 @@
   <div class="card p-4 mt-5 mx-auto" style="max-width: 900px">
     <div class="d-flex justify-content-between align-items-center mb-4">
       <h1 class="card-title text-center mb-0">Correos Editables Guardados</h1>
-      <router-link to="/" class="btn btn-success" v-if="authStore.isAdmin">Crear Nuevo</router-link>
+      <router-link to="/crear-correo" class="btn btn-success">Crear Nuevo</router-link>
     </div>
 
     <div class="mb-4" v-if="!emailStore.loading && !emailStore.error && emailStore.emails.length > 0">

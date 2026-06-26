@@ -11,7 +11,7 @@ router.post('/:uuid/send-test', protect, emailController.sendTestEmailController
 
 // Rutas de la colección de correos
 router.get('/', protect, emailController.getAllEmails)
-router.post('/', protect, [body('template_id').notEmpty(), body('initial_content').isObject().notEmpty()], emailController.createEmail)
+router.post('/', protect, [body('template_id').optional({ nullable: true }), body('initial_content').isObject()], emailController.createEmail)
 
 // Rutas para un correo específico
 router.get('/:uuid', protect, emailController.getEmailByUuid)
