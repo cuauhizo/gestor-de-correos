@@ -156,6 +156,34 @@
       </div>
     </div>
   </div>
+  <teleport to="body">
+    <div v-if="showImageModal" class="modal fade show d-block" tabindex="-1" style="background: rgba(0, 0, 0, 0.5); z-index: 1055">
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content shadow-lg border-0">
+          <div class="modal-header bg-light">
+            <h5 class="modal-title fw-bold">
+              <i-bi-image class="text-primary me-2" />
+              Actualizar Imagen
+            </h5>
+            <button type="button" class="btn-close" @click="closeImageModal"></button>
+          </div>
+          <div class="modal-body p-4">
+            <div class="mb-4">
+              <label class="form-label fw-bold">URL de la imagen de reemplazo:</label>
+              <input type="url" class="form-control form-control-lg" v-model="tempImageUrl" placeholder="https://ejemplo.com/mi-imagen.jpg" @keyup.enter="saveImageUrl" autofocus />
+            </div>
+            <div v-if="tempImageUrl" class="text-center p-3 border rounded bg-light" style="min-height: 150px; display: flex; align-items: center; justify-content: center">
+              <img :src="tempImageUrl" class="img-fluid rounded shadow-sm" style="max-height: 200px; object-fit: contain" />
+            </div>
+          </div>
+          <div class="modal-footer bg-light">
+            <button type="button" class="btn btn-secondary" @click="closeImageModal">Cancelar</button>
+            <button type="button" class="btn btn-primary px-4" @click="saveImageUrl">Aplicar Imagen</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </teleport>
 </template>
 
 <script setup>
@@ -183,6 +211,28 @@
   const sectionEditorRefs = ref(new Map())
   const modalStore = useModalStore()
   const previewWidth = ref('100%')
+  const showImageModal = ref(false)
+  const tempImageUrl = ref('')
+  const activeImageContext = ref(null)
+
+  const openImageModal = (sectionId, contentKey, currentUrl) => {
+    activeImageContext.value = { sectionId, contentKey }
+    tempImageUrl.value = currentUrl
+    showImageModal.value = true
+  }
+
+  const closeImageModal = () => {
+    showImageModal.value = false
+    tempImageUrl.value = ''
+    activeImageContext.value = null
+  }
+
+  const saveImageUrl = () => {
+    if (activeImageContext.value) {
+      editorStore.updateSectionContent(activeImageContext.value.sectionId, activeImageContext.value.contentKey, tempImageUrl.value)
+    }
+    closeImageModal()
+  }
 
   const isSendingTest = ref(false)
 
@@ -279,11 +329,12 @@
             const section = editorStore.editableContent.sections.find(s => s.id === sectionId)
             if (section) {
               const currentUrl = section.content[contentKey] || ''
-              const newUrl = prompt('Introduce la nueva URL de la imagen:', currentUrl)
-              if (newUrl !== null && newUrl !== currentUrl) {
-                // Llamamos a la acción del store para asegurar reactividad
-                editorStore.updateSectionContent(sectionId, contentKey, newUrl)
-              }
+              // const newUrl = prompt('Introduce la nueva URL de la imagen:', currentUrl)
+              // if (newUrl !== null && newUrl !== currentUrl) {
+              //   // Llamamos a la acción del store para asegurar reactividad
+              //   editorStore.updateSectionContent(sectionId, contentKey, newUrl)
+              // }
+              openImageModal(sectionId, contentKey, currentUrl)
             }
           } else if (target.tagName !== 'IMG' && event.type === 'dblclick') {
             // 1. Buscamos la referencia directamente en el Map por su ID único (Instantáneo y 100% preciso)
